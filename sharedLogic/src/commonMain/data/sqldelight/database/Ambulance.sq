@@ -1,0 +1,5 @@
+CREATE TABLE Ambulance (
+    id TEXT NOT NULL PRIMARY KEY,
+    callSign TEXT NOT NULL,
+    registrationNumber TEXT NOT NULL
+    );

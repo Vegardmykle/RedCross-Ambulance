@@ -1,0 +1,10 @@
+CREATE TABLE ChecklistItem (
+    id TEXT NOT NULL PRIMARY KEY,
+    templateId TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    sortOrder INTEGER NOT NULL,
+
+    FOREIGN KEY (templateId)
+        REFERENCES ChecklistTemplate(id)
+    );

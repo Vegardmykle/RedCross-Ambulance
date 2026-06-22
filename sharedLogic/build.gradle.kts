@@ -9,6 +9,13 @@ plugins {
     */
     id("app.cash.sqldelight") version "2.3.2"
 }
+sqldelight {
+    databases {
+        create("AppDatabase") {
+            packageName.set("org.example.project.sharedLogic.data.sqldelight.com.example.db")
+        }
+    }
+}
 
 kotlin {
     listOf(

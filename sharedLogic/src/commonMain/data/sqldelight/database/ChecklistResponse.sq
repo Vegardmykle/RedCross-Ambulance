@@ -1,0 +1,14 @@
+CREATE TABLE ChecklistResponse (
+    id TEXT NOT NULL PRIMARY KEY,
+    checklistRunId TEXT NOT NULL,
+    itemId TEXT NOT NULL,
+    result TEXT NOT NULL, -- OK, NOT_OK, NA
+    comment TEXT,
+    checkedAt INTEGER NOT NULL,
+
+    FOREIGN KEY (checklistRunId)
+        REFERENCES ChecklistRun(id),
+
+    FOREIGN KEY (itemId)
+        REFERENCES ChecklistItem(id)
+);

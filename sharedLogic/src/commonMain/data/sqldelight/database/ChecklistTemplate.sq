@@ -1,0 +1,7 @@
+CREATE TABLE ChecklistTemplate (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL, -- DAILY, WEEKLY, MONTHLY
+    version INTEGER NOT NULL
+    );
+

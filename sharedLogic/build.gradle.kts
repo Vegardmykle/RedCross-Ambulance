@@ -13,6 +13,7 @@ sqldelight {
     databases {
         create("AppDatabase") {
             packageName.set("org.example.project.sharedLogic.data.sqldelight.com.example.db")
+            srcDirs.setFrom("src/commonMain/data/sqldelight")
         }
     }
 }

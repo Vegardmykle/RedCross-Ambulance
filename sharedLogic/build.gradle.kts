@@ -3,8 +3,10 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidMultiplatformLibrary)
-    /*impl when avible
-    id("co.touchlab.skie") version "0.10.12"*/
+    /*
+    impl when avible
+    id("co.touchlab.skie") version "0.10.12"
+    */
     id("app.cash.sqldelight") version "2.3.2"
 }
 

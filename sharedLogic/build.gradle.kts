@@ -3,17 +3,14 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidMultiplatformLibrary)
-    /*
-    impl when avible
-    id("co.touchlab.skie") version "0.10.12"
-    */
     id("app.cash.sqldelight") version "2.3.2"
 }
+
 sqldelight {
     databases {
         create("AppDatabase") {
-            packageName.set("org.example.project.sharedLogic.data.sqldelight.com.example.db")
-            srcDirs.setFrom("src/commonMain/data/sqldelight")
+            packageName.set("org.example.project.db")
+            srcDirs("src/commonMain/data/sqldelight")
         }
     }
 }
@@ -46,11 +43,29 @@ kotlin {
     }
     
     sourceSets {
-        commonMain.dependencies {
-            // put your Multiplatform dependencies here
+        val commonMain by getting {
+            dependencies {
+                // put your Multiplatform dependencies here
+            }
         }
-        commonTest.dependencies {
-            implementation(libs.kotlin.test)
+        
+        val androidMain by getting {
+            dependencies {
+                implementation(libs.androidDriver)
+            }
+        }
+        
+        val iosMain = maybeCreate("iosMain").apply {
+            dependsOn(commonMain)
+            dependencies {
+                implementation(libs.nativeDriver)
+            }
+        }
+        
+        val commonTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+            }
         }
     }
 }

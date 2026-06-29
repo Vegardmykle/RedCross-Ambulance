@@ -43,7 +43,8 @@ erDiagram
         string userId FK
         int createdAt
         int completedAt
-        string status
+        string status OK|NOT_OK|INCOMPLETE|DAMAGED
+        string comment
         int synced
     }
 

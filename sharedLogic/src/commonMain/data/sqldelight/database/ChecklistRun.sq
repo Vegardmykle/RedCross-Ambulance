@@ -5,7 +5,7 @@ CREATE TABLE ChecklistRun (
     userId TEXT NOT NULL,
     createdAt INTEGER NOT NULL,
     completedAt INTEGER,
-    status TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status ('OK','NOT_OK','INCOMPLETE','DAMAGED')),
     synced INTEGER NOT NULL DEFAULT 0,
 
     FOREIGN KEY (templateId)

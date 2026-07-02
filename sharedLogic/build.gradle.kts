@@ -55,11 +55,19 @@ kotlin {
             }
         }
         
-        val iosMain = maybeCreate("iosMain").apply {
+        val iosMain by creating {
             dependsOn(commonMain)
             dependencies {
                 implementation(libs.nativeDriver)
             }
+        }
+        
+        val iosArm64Main by getting {
+            dependsOn(iosMain)
+        }
+        
+        val iosSimulatorArm64Main by getting {
+            dependsOn(iosMain)
         }
         
         val commonTest by getting {

@@ -1,6 +1,7 @@
 package org.example.project
 
-import kotlin.random.Random
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /** Resultat per sjekkpunkt: ja / nei / mangelfull / ødelagt. */
 enum class ItemResult(val db: String, val label: String) {
@@ -25,9 +26,5 @@ enum class TemplateType(val db: String, val label: String) {
     }
 }
 
-fun randomId(): String {
-    val chars = "0123456789abcdef"
-    return buildString {
-        repeat(32) { append(chars[Random.nextInt(16)]) }
-    }
-}
+@OptIn(ExperimentalUuidApi::class)
+fun randomId(): String = Uuid.random().toString()

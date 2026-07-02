@@ -1,4 +1,4 @@
-package org.example.project
+package org.example.project.data
 
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
@@ -15,6 +15,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import org.example.project.db.AppDatabase
+import org.example.project.model.ItemResult
+import org.example.project.model.TemplateType
+import org.example.project.util.currentTimeMillis
+import org.example.project.util.randomId
 
 /**
  * Alt UI-laget trenger for å lese og skrive sjekklister.

@@ -1,7 +1,4 @@
-package org.example.project
-
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
+package org.example.project.model
 
 /** Resultat per sjekkpunkt: ja / nei / mangelfull / ødelagt. */
 enum class ItemResult(val db: String, val label: String) {
@@ -25,6 +22,3 @@ enum class TemplateType(val db: String, val label: String) {
         fun fromDb(value: String): TemplateType = entries.first { it.db == value }
     }
 }
-
-@OptIn(ExperimentalUuidApi::class)
-fun randomId(): String = Uuid.random().toString()

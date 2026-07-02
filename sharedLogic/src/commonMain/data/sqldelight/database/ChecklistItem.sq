@@ -33,6 +33,6 @@ DELETE FROM ChecklistItem
 WHERE templateId = ?1;
 
 maxSortOrderForTemplate:
-SELECT MAX(sortOrder)
+SELECT MAX(sortOrder) AS maxSort
 FROM ChecklistItem
 WHERE templateId = ?1;

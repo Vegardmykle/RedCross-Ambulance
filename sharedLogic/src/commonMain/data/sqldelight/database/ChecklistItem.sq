@@ -7,4 +7,32 @@ CREATE TABLE ChecklistItem (
 
     FOREIGN KEY (templateId)
         REFERENCES ChecklistTemplate(id)
-    );
+);
+
+getItemsByTemplateId:
+SELECT *
+FROM ChecklistItem
+WHERE templateId = ?1
+ORDER BY sortOrder;
+
+insertItem:
+INSERT INTO ChecklistItem(id, templateId, title, description, sortOrder)
+VALUES (?1, ?2, ?3, ?4, ?5);
+
+updateItem:
+UPDATE ChecklistItem
+SET title = ?2, description = ?3
+WHERE id = ?1;
+
+deleteItem:
+DELETE FROM ChecklistItem
+WHERE id = ?1;
+
+deleteItemsForTemplate:
+DELETE FROM ChecklistItem
+WHERE templateId = ?1;
+
+maxSortOrderForTemplate:
+SELECT MAX(sortOrder)
+FROM ChecklistItem
+WHERE templateId = ?1;

@@ -2,10 +2,10 @@ CREATE TABLE ChecklistRun (
     id TEXT NOT NULL PRIMARY KEY,
     templateId TEXT NOT NULL,
     ambulanceId TEXT NOT NULL,
-    userId TEXT NOT NULL,
+    signature TEXT, -- mannskaps-ID/navn, settes ved lukking
     createdAt INTEGER NOT NULL,
     completedAt INTEGER,
-    status TEXT NOT NULL CHECK (status ('OK','NOT_OK','INCOMPLETE','DAMAGED')),
+    status TEXT NOT NULL CHECK (status IN ('IN_PROGRESS','COMPLETED')),
     comment TEXT,
     synced INTEGER NOT NULL DEFAULT 0,
 
@@ -13,8 +13,38 @@ CREATE TABLE ChecklistRun (
         REFERENCES ChecklistTemplate(id),
 
     FOREIGN KEY (ambulanceId)
-        REFERENCES Ambulance(id),
-
-    FOREIGN KEY (userId)
-        REFERENCES User(id)
+        REFERENCES Ambulance(id)
 );
+
+insertRun:
+INSERT INTO ChecklistRun(id, templateId, ambulanceId, signature, createdAt, completedAt, status, comment, synced)
+VALUES (?1, ?2, ?3, NULL, ?4, NULL, 'IN_PROGRESS', NULL, 0);
+
+getOpenRun:
+SELECT *
+FROM ChecklistRun
+WHERE templateId = ?1 AND ambulanceId = ?2 AND status = 'IN_PROGRESS'
+ORDER BY createdAt DESC
+LIMIT 1;
+
+getRunById:
+SELECT *
+FROM ChecklistRun
+WHERE id = ?1;
+
+completeRun:
+UPDATE ChecklistRun
+SET status = 'COMPLETED', completedAt = ?2, signature = ?3, comment = ?4
+WHERE id = ?1;
+
+getRecentRuns:
+SELECT ChecklistRun.*, ChecklistTemplate.name AS templateName, Ambulance.callSign
+FROM ChecklistRun
+JOIN ChecklistTemplate ON ChecklistTemplate.id = ChecklistRun.templateId
+JOIN Ambulance ON Ambulance.id = ChecklistRun.ambulanceId
+ORDER BY createdAt DESC
+LIMIT ?1;
+
+deleteRun:
+DELETE FROM ChecklistRun
+WHERE id = ?1;

@@ -45,7 +45,8 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                // put your Multiplatform dependencies here
+                implementation(libs.kotlinx.coroutines.core)
+                implementation(libs.sqldelight.coroutines)
             }
         }
         

@@ -1,7 +1,53 @@
 CREATE TABLE ChecklistTemplate (
     id TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
-    type TEXT NOT NULL, -- DAILY, WEEKLY, MONTHLY
-    version INTEGER NOT NULL
-    );
+    type TEXT NOT NULL CHECK (type IN ('DAILY','WEEKLY','MONTHLY','BAG')),
+    parentId TEXT, -- for BAG: hovedlisten sekken hører til
+    sortOrder INTEGER NOT NULL DEFAULT 0,
+    version INTEGER NOT NULL DEFAULT 1,
 
+    FOREIGN KEY (parentId)
+        REFERENCES ChecklistTemplate(id)
+);
+
+getAllTopLevelTemplates:
+SELECT *
+FROM ChecklistTemplate
+WHERE parentId IS NULL
+ORDER BY
+    CASE type WHEN 'DAILY' THEN 0 WHEN 'WEEKLY' THEN 1 WHEN 'MONTHLY' THEN 2 ELSE 3 END,
+    sortOrder;
+
+getTemplateById:
+SELECT *
+FROM ChecklistTemplate
+WHERE id = ?1;
+
+getTemplatesByType:
+SELECT *
+FROM ChecklistTemplate
+WHERE type = ?1 AND parentId IS NULL
+ORDER BY sortOrder;
+
+getBagsForTemplate:
+SELECT *
+FROM ChecklistTemplate
+WHERE parentId = ?1
+ORDER BY sortOrder;
+
+insertTemplate:
+INSERT INTO ChecklistTemplate(id, name, type, parentId, sortOrder, version)
+VALUES (?1, ?2, ?3, ?4, ?5, 1);
+
+updateTemplateName:
+UPDATE ChecklistTemplate
+SET name = ?2, version = version + 1
+WHERE id = ?1;
+
+deleteTemplate:
+DELETE FROM ChecklistTemplate
+WHERE id = ?1;
+
+countTemplates:
+SELECT COUNT(*)
+FROM ChecklistTemplate;

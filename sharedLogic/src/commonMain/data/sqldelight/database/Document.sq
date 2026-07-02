@@ -1,0 +1,25 @@
+-- Interne instrukser, beredskapsplan, tiltakskort (PDF) – lagres som sti/URL
+CREATE TABLE Document (
+    id TEXT NOT NULL PRIMARY KEY,
+    title TEXT NOT NULL,
+    uri TEXT NOT NULL, -- lokal filsti eller URL
+    sortOrder INTEGER NOT NULL DEFAULT 0
+);
+
+getAllDocuments:
+SELECT *
+FROM Document
+ORDER BY sortOrder;
+
+insertDocument:
+INSERT INTO Document(id, title, uri, sortOrder)
+VALUES (?1, ?2, ?3, ?4);
+
+updateDocument:
+UPDATE Document
+SET title = ?2, uri = ?3
+WHERE id = ?1;
+
+deleteDocument:
+DELETE FROM Document
+WHERE id = ?1;

@@ -1,0 +1,29 @@
+-- Lenker til eksterne skjema (avviksmelding, naloxon-registrering, medisinutdeling osv.)
+CREATE TABLE AppLink (
+    id TEXT NOT NULL PRIMARY KEY,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    sortOrder INTEGER NOT NULL DEFAULT 0
+);
+
+getAllLinks:
+SELECT *
+FROM AppLink
+ORDER BY sortOrder;
+
+insertLink:
+INSERT INTO AppLink(id, title, url, sortOrder)
+VALUES (?1, ?2, ?3, ?4);
+
+updateLink:
+UPDATE AppLink
+SET title = ?2, url = ?3
+WHERE id = ?1;
+
+deleteLink:
+DELETE FROM AppLink
+WHERE id = ?1;
+
+countLinks:
+SELECT COUNT(*)
+FROM AppLink;

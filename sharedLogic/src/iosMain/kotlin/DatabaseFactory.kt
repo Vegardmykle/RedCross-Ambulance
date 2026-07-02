@@ -1,6 +1,6 @@
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.native.NativeSqliteDriver
-import org.example.project.sharedLogic.data.sqldelight.com.example.db.AppDatabase
+import org.example.project.db.AppDatabase
 
 
 fun createDriver(): SqlDriver {

@@ -78,11 +78,9 @@ erDiagram
 ## Notater
 
 - **Sekker/tasker**: egne `ChecklistTemplate` med `type = BAG` og `parentId` til hovedlisten.
-  En kjøring av daglig liste dekker også sekkenes punkter (responses peker på items
-  på tvers av hoved- og sekk-lister).
+  En kjøring av daglig liste dekker også sekkenes punkter 
 - **Signering**: `ChecklistRun.signature` settes ved lukking (`completeRun` krever ikke-blank).
 - **Mangler**: `getOpenDeficiencies` henter alle responses med resultat NEI/MANGELFULL/ODELAGT
   som ikke er `resolved` – vises på egen oversiktsside.
 - **Document.uri**: peker på PDF lagret lokalt via `DocumentStorage` (offline-tilgjengelig).
-  Kilde for filene blir Firebase Storage (nedlasting ved oppstart, senere steg).
-- **User**: ikke i bruk ennå – signering skjer med fritekst mannskaps-ID/navn.
+- **User**: ikke i bruk ennå 

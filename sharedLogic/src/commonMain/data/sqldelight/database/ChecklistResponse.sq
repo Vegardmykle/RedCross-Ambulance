@@ -39,12 +39,14 @@ SELECT
     ChecklistItem.title AS itemTitle,
     ChecklistTemplate.name AS listName,
     Ambulance.callSign,
-    ChecklistRun.signature
+    ChecklistRun.userId,
+    User.name AS signedByName
 FROM ChecklistResponse
 JOIN ChecklistItem ON ChecklistItem.id = ChecklistResponse.itemId
 JOIN ChecklistTemplate ON ChecklistTemplate.id = ChecklistItem.templateId
 JOIN ChecklistRun ON ChecklistRun.id = ChecklistResponse.checklistRunId
 JOIN Ambulance ON Ambulance.id = ChecklistRun.ambulanceId
+LEFT JOIN User ON User.id = ChecklistRun.userId
 WHERE ChecklistResponse.result IN ('NEI','MANGELFULL','ODELAGT')
   AND ChecklistResponse.resolved = 0
 ORDER BY ChecklistResponse.checkedAt DESC;

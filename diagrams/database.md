@@ -3,6 +3,7 @@
 ```mermaid
 erDiagram
     Ambulance ||--o{ ChecklistRun : "used in"
+    User ||--o{ ChecklistRun : "signed by"
     ChecklistTemplate ||--o{ ChecklistTemplate : "has bags (parentId)"
     ChecklistTemplate ||--|{ ChecklistItem : "contains"
     ChecklistTemplate ||--o{ ChecklistRun : "instantiated as"
@@ -16,7 +17,7 @@ erDiagram
     }
 
     User {
-        string id PK
+        string id PK "mannskaps-ID"
         string name
         string role
     }
@@ -42,7 +43,7 @@ erDiagram
         string id PK
         string templateId FK
         string ambulanceId FK
-        string signature "mannskaps-ID/navn, kreves ved lukking"
+        string userId FK "mannskaps-ID (User.id)"
         int createdAt
         int completedAt
         string status "IN_PROGRESS|COMPLETED"
@@ -78,9 +79,8 @@ erDiagram
 ## Notater
 
 - **Sekker/tasker**: egne `ChecklistTemplate` med `type = BAG` og `parentId` til hovedlisten.
-  En kjøring av daglig liste dekker også sekkenes punkter 
-- **Signering**: `ChecklistRun.signature` settes ved lukking (`completeRun` krever ikke-blank).
+  En kjøring av daglig liste dekker også sekkenes punkter
 - **Mangler**: `getOpenDeficiencies` henter alle responses med resultat NEI/MANGELFULL/ODELAGT
   som ikke er `resolved` – vises på egen oversiktsside.
-- **Document.uri**: peker på PDF lagret lokalt via `DocumentStorage` (offline-tilgjengelig).
-- **User**: ikke i bruk ennå 
+- **Document.uri**: peker på PDF lagret lokalt via `DocumentStorage`
+- **User**: opprettes med mannskaps-ID som id (`addUser`), brukes ved signering.

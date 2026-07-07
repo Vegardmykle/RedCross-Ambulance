@@ -11,6 +11,7 @@ import database.ChecklistTemplate
 import database.Document
 import database.GetOpenDeficiencies
 import database.GetRecentRuns
+import database.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -117,11 +118,11 @@ class ChecklistRepository(private val db: AppDatabase) {
         )
     }
 
-    /** Krever signatur (mannskaps-ID/navn) for å lukke lista. */
-    suspend fun completeRun(runId: String, signature: String, comment: String? = null) =
+    /** Krever mannskaps-ID (User.id) for å lukke lista. */
+    suspend fun completeRun(runId: String, userId: String, comment: String? = null) =
         withContext(Dispatchers.Default) {
-            require(signature.isNotBlank()) { "Signatur er påkrevd" }
-            db.checklistRunQueries.completeRun(runId, currentTimeMillis(), signature, comment)
+            require(userId.isNotBlank()) { "Mannskaps-ID er påkrevd" }
+            db.checklistRunQueries.completeRun(runId, currentTimeMillis(), userId, comment)
         }
 
     fun recentRuns(limit: Long = 20): Flow<List<GetRecentRuns>> =
@@ -138,6 +139,23 @@ class ChecklistRepository(private val db: AppDatabase) {
         withContext(Dispatchers.Default) {
             db.checklistResponseQueries.resolveDeficiency(responseId)
         }
+
+    // ---------- Mannskap ----------
+
+    fun users(): Flow<List<User>> =
+        db.userQueries.getAllUsers()
+            .asFlow().mapToList(Dispatchers.Default)
+
+    /** id = mannskaps-ID (ikke generert). */
+    suspend fun addUser(id: String, name: String, role: String) =
+        withContext(Dispatchers.Default) {
+            require(id.isNotBlank()) { "Mannskaps-ID er påkrevd" }
+            db.userQueries.insertUser(id, name, role)
+        }
+
+    suspend fun deleteUser(id: String) = withContext(Dispatchers.Default) {
+        db.userQueries.deleteUser(id)
+    }
 
     // ---------- Ambulanser ----------
 

@@ -8,7 +8,19 @@ plugins {
 }
 
 kotlin {
-    
+
+    listOf(
+        iosArm64(),
+        iosSimulatorArm64()
+    ).forEach { iosTarget ->
+        iosTarget.binaries.framework {
+            baseName = "SharedUI"
+            isStatic = true
+            // Gjør sharedLogic-typene synlige for Swift gjennom samme framework
+            export(projects.sharedLogic)
+        }
+    }
+
     androidLibrary {
        namespace = "org.example.project.sharedUI"
        compileSdk = libs.versions.android.compileSdk.get().toInt()

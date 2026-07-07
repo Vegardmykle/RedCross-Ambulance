@@ -56,22 +56,11 @@ kotlin {
                 implementation(libs.androidx.core.ktx)
             }
         }
-        
-        val iosMain by creating {
-            dependsOn(commonMain)
-            dependencies {
-                implementation(libs.nativeDriver)
-            }
+
+        iosMain.dependencies {
+            implementation(libs.nativeDriver)
         }
-        
-        val iosArm64Main by getting {
-            dependsOn(iosMain)
-        }
-        
-        val iosSimulatorArm64Main by getting {
-            dependsOn(iosMain)
-        }
-        
+
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))

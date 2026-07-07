@@ -3,7 +3,7 @@
 ```mermaid
 erDiagram
     Ambulance ||--o{ ChecklistRun : "used in"
-    User ||--o{ ChecklistRun : "performed by"
+    ChecklistTemplate ||--o{ ChecklistTemplate : "has bags (parentId)"
     ChecklistTemplate ||--|{ ChecklistItem : "contains"
     ChecklistTemplate ||--o{ ChecklistRun : "instantiated as"
     ChecklistRun ||--|{ ChecklistResponse : "has"
@@ -24,7 +24,9 @@ erDiagram
     ChecklistTemplate {
         string id PK
         string name
-        string type
+        string type "DAILY|WEEKLY|MONTHLY|BAG"
+        string parentId FK "BAG: hovedlisten sekken hører til"
+        int sortOrder
         int version
     }
 
@@ -40,20 +42,47 @@ erDiagram
         string id PK
         string templateId FK
         string ambulanceId FK
-        string userId FK
+        string signature "mannskaps-ID/navn, kreves ved lukking"
         int createdAt
         int completedAt
-        string status OK|NOT_OK|INCOMPLETE|DAMAGED
+        string status "IN_PROGRESS|COMPLETED"
         string comment
-        int synced
+        int synced "0/1 – for senere Firebase-sync"
     }
 
     ChecklistResponse {
         string id PK
         string checklistRunId FK
-        string itemId FK
-        string result
+        string itemId FK "UNIQUE(runId, itemId)"
+        string result "JA|NEI|MANGELFULL|ODELAGT"
         string comment
         int checkedAt
+        int resolved "0/1 – avvik fulgt opp"
+    }
+
+    AppLink {
+        string id PK
+        string title
+        string url "avviksmelding, naloxon, medisin (forms)"
+        int sortOrder
+    }
+
+    Document {
+        string id PK
+        string title
+        string uri "lokal filsti (PDF lagret i appen)"
+        int sortOrder
     }
 ```
+
+## Notater
+
+- **Sekker/tasker**: egne `ChecklistTemplate` med `type = BAG` og `parentId` til hovedlisten.
+  En kjøring av daglig liste dekker også sekkenes punkter (responses peker på items
+  på tvers av hoved- og sekk-lister).
+- **Signering**: `ChecklistRun.signature` settes ved lukking (`completeRun` krever ikke-blank).
+- **Mangler**: `getOpenDeficiencies` henter alle responses med resultat NEI/MANGELFULL/ODELAGT
+  som ikke er `resolved` – vises på egen oversiktsside.
+- **Document.uri**: peker på PDF lagret lokalt via `DocumentStorage` (offline-tilgjengelig).
+  Kilde for filene blir Firebase Storage (nedlasting ved oppstart, senere steg).
+- **User**: ikke i bruk ennå – signering skjer med fritekst mannskaps-ID/navn.

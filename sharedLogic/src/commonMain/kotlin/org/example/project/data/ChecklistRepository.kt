@@ -90,6 +90,15 @@ class ChecklistRepository(private val db: AppDatabase) {
         db.checklistItemQueries.deleteItem(id)
     }
 
+    /** Setter ny rekkefølge: itemIds i ønsket rekkefølge får sortOrder 1, 2, 3 … */
+    suspend fun reorderItems(itemIds: List<String>) = withContext(Dispatchers.Default) {
+        db.transaction {
+            itemIds.forEachIndexed { index, id ->
+                db.checklistItemQueries.updateItemSortOrder(id, (index + 1).toLong())
+            }
+        }
+    }
+
     // ---------- Kjøringer ----------
 
     /** Gjenbruker åpen kjøring for samme liste+ambulanse, ellers ny. */

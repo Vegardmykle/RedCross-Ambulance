@@ -4,6 +4,7 @@ CREATE TABLE ChecklistResponse (
     itemId TEXT NOT NULL,
     result TEXT NOT NULL CHECK (result IN ('JA','NEI','MANGELFULL','ODELAGT')),
     comment TEXT,
+    reading TEXT, -- avlest verdi der punktet krever det (f.eks. '180' bar)
     checkedAt INTEGER NOT NULL,
     resolved INTEGER NOT NULL DEFAULT 0, -- 1 når avviket er fulgt opp
 
@@ -17,8 +18,8 @@ CREATE TABLE ChecklistResponse (
 );
 
 upsertResponse:
-INSERT OR REPLACE INTO ChecklistResponse(id, checklistRunId, itemId, result, comment, checkedAt, resolved)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0);
+INSERT OR REPLACE INTO ChecklistResponse(id, checklistRunId, itemId, result, comment, reading, checkedAt, resolved)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0);
 
 getResponsesForRun:
 SELECT *
@@ -35,6 +36,7 @@ SELECT
     ChecklistResponse.id,
     ChecklistResponse.result,
     ChecklistResponse.comment,
+    ChecklistResponse.reading,
     ChecklistResponse.checkedAt,
     ChecklistItem.title AS itemTitle,
     ChecklistTemplate.name AS listName,

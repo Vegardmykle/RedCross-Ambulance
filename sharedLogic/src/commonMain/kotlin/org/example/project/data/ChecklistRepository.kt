@@ -73,11 +73,16 @@ class ChecklistRepository(private val db: AppDatabase) {
         templateId: String,
         title: String,
         description: String? = null,
+        requiresValue: Boolean = false,
+        unit: String? = null,
     ): String = withContext(Dispatchers.Default) {
         val id = randomId()
         val next = (db.checklistItemQueries.maxSortOrderForTemplate(templateId)
             .executeAsOne().maxSort ?: 0L) + 1
-        db.checklistItemQueries.insertItem(id, templateId, title, description, next)
+        db.checklistItemQueries.insertItem(
+            id, templateId, title, description,
+            if (requiresValue) 1L else 0L, unit, next,
+        )
         id
     }
 
@@ -121,9 +126,10 @@ class ChecklistRepository(private val db: AppDatabase) {
         itemId: String,
         result: ItemResult,
         comment: String? = null,
+        reading: String? = null,
     ) = withContext(Dispatchers.Default) {
         db.checklistResponseQueries.upsertResponse(
-            randomId(), runId, itemId, result.db, comment, currentTimeMillis(),
+            randomId(), runId, itemId, result.db, comment, reading, currentTimeMillis(),
         )
     }
 

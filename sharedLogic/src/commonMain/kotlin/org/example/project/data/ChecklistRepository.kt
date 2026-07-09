@@ -20,6 +20,7 @@ import org.example.project.model.ItemResult
 import org.example.project.model.TemplateType
 import org.example.project.util.currentTimeMillis
 import org.example.project.util.randomId
+import org.example.project.util.startOfTodayMillis
 
 /**
  * Alt UI-laget trenger for å lese og skrive sjekklister.
@@ -119,15 +120,21 @@ class ChecklistRepository(private val db: AppDatabase) {
 
     // ---------- Kjøringer ----------
 
-    /** Gjenbruker åpen kjøring for samme liste+ambulanse, ellers ny. */
+    /**
+     * Gjenbruker åpen kjøring fra samme dag for samme liste+ambulanse.
+     * En usignert kjøring fra en tidligere dag bevares som EXPIRED
+     * (svar og avvik beholdes), og en ny kjøring startes for dagen.
+     */
     suspend fun startOrResumeRun(templateId: String, ambulanceId: String): ChecklistRun =
         withContext(Dispatchers.Default) {
-            db.checklistRunQueries.getOpenRun(templateId, ambulanceId).executeAsOneOrNull()
-                ?: run {
-                    val id = randomId()
-                    db.checklistRunQueries.insertRun(id, templateId, ambulanceId, currentTimeMillis())
-                    db.checklistRunQueries.getRunById(id).executeAsOne()
-                }
+            val open = db.checklistRunQueries.getOpenRun(templateId, ambulanceId).executeAsOneOrNull()
+            if (open != null) {
+                if (open.createdAt >= startOfTodayMillis()) return@withContext open
+                db.checklistRunQueries.expireRun(open.id)
+            }
+            val id = randomId()
+            db.checklistRunQueries.insertRun(id, templateId, ambulanceId, currentTimeMillis())
+            db.checklistRunQueries.getRunById(id).executeAsOne()
         }
 
     fun responsesForRun(runId: String): Flow<List<ChecklistResponse>> =

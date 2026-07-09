@@ -107,6 +107,18 @@ struct ChecklistRunScreen: View {
                 signSection
             }
             .navigationTitle(template?.name ?? "Sjekkliste")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    if let template {
+                        NavigationLink {
+                            EditTemplateView(template: template)
+                        } label: {
+                            Image(systemName: "pencil")
+                        }
+                        .accessibilityLabel("Rediger sjekkliste")
+                    }
+                }
+            }
             .sheet(isPresented: $showSignSheet) {
                 SignSheetView(
                     deficiencies: deficiencies,

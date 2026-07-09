@@ -138,6 +138,15 @@ struct DashboardView: View {
                     .buttonStyle(.bordered)
                 }
             }
+
+            NavigationLink {
+                HistoryView()
+            } label: {
+                Label("Se historikk", systemImage: "clock.arrow.circlepath")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.bordered)
+            .tint(.rkPrimary)
         }
     }
 

@@ -7,6 +7,8 @@ CREATE TABLE ChecklistResponse (
     reading TEXT, -- avlest verdi der punktet krever det (f.eks. '180' bar)
     checkedAt INTEGER NOT NULL,
     resolved INTEGER NOT NULL DEFAULT 0, -- 1 når avviket er fulgt opp
+    resolvedAt INTEGER, -- når avviket ble markert som løst
+    resolvedReading TEXT, -- ny avlest verdi ved løsing (gammel ligger i reading)
 
     UNIQUE (checklistRunId, itemId),
 
@@ -18,8 +20,13 @@ CREATE TABLE ChecklistResponse (
 );
 
 upsertResponse:
-INSERT OR REPLACE INTO ChecklistResponse(id, checklistRunId, itemId, result, comment, reading, checkedAt, resolved)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0);
+INSERT OR REPLACE INTO ChecklistResponse(id, checklistRunId, itemId, result, comment, reading, checkedAt, resolved, resolvedAt, resolvedReading)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, NULL, NULL);
+
+getResponseById:
+SELECT *
+FROM ChecklistResponse
+WHERE id = ?1;
 
 getResponsesForRun:
 SELECT *
@@ -39,6 +46,10 @@ SELECT
     ChecklistResponse.reading,
     ChecklistResponse.checkedAt,
     ChecklistItem.title AS itemTitle,
+    ChecklistItem.requiresValue,
+    ChecklistItem.unit,
+    ChecklistItem.minValue,
+    ChecklistItem.maxValue,
     ChecklistTemplate.name AS listName,
     Ambulance.callSign,
     ChecklistRun.userId,
@@ -55,5 +66,5 @@ ORDER BY ChecklistResponse.checkedAt DESC;
 
 resolveDeficiency:
 UPDATE ChecklistResponse
-SET resolved = 1
+SET resolved = 1, resolvedAt = ?2, resolvedReading = ?3
 WHERE id = ?1;

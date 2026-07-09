@@ -20,13 +20,6 @@ struct ContentView: View {
 }
 
 // Plassholdere – bygges i neste inkrementer
-struct DeficienciesView: View {
-    var body: some View {
-        Text("Mangler – bygges i neste steg")
-            .foregroundStyle(.secondary)
-    }
-}
-
 struct ResourcesView: View {
     var body: some View {
         Text("Ressurser – bygges i neste steg")

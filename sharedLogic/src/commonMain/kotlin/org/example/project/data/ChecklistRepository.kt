@@ -209,9 +209,34 @@ class ChecklistRepository(private val db: AppDatabase) {
         db.checklistResponseQueries.getOpenDeficiencies()
             .asFlow().mapToList(Dispatchers.Default)
 
-    suspend fun resolveDeficiency(responseId: String) =
+    /**
+     * Markerer et avvik som løst. For målepunkter kreves ny avlest verdi,
+     * og den må være innenfor punktets grenseverdier.
+     * Gammel verdi (reading), ny verdi (resolvedReading) og tidspunkt (resolvedAt) bevares.
+     */
+    suspend fun resolveDeficiency(responseId: String, newReading: String? = null) =
         withContext(Dispatchers.Default) {
-            db.checklistResponseQueries.resolveDeficiency(responseId)
+            val response = db.checklistResponseQueries.getResponseById(responseId).executeAsOneOrNull()
+            checkNotNull(response) { "Fant ikke avviket" }
+            check(response.resolved == 0L) { "Avviket er allerede løst" }
+
+            val item = db.checklistItemQueries.getItemById(response.itemId).executeAsOneOrNull()
+            var reading: String? = null
+            if (item != null && item.requiresValue == 1L) {
+                val value = requireNotNull(newReading?.toDoubleOrNull()) {
+                    "Ny avlest verdi er påkrevd"
+                }
+                val min = item.minValue
+                val max = item.maxValue
+                check((min == null || value >= min) && (max == null || value <= max)) {
+                    "Verdien er fortsatt utenfor grense" +
+                        (min?.let { " (min ${fmt(it)})" } ?: "") +
+                        (max?.let { " (maks ${fmt(it)})" } ?: "")
+                }
+                reading = newReading
+            }
+
+            db.checklistResponseQueries.resolveDeficiency(responseId, currentTimeMillis(), reading)
         }
 
     // ---------- Mannskap ----------

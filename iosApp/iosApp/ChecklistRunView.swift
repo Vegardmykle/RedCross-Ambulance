@@ -62,6 +62,8 @@ struct ChecklistRunScreen: View {
     @State private var earlierDeficiencyItemIds: Set<String> = []
     @State private var showSignSheet = false
     @State private var justCompleted = false
+    @State private var showEditWarning = false
+    @State private var navigateToEdit = false
 
     private var allItems: [ChecklistItem] {
         items + bagItems.values.flatMap { $0 }
@@ -109,14 +111,25 @@ struct ChecklistRunScreen: View {
             .navigationTitle(template?.name ?? "Sjekkliste")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    if let template {
-                        NavigationLink {
-                            EditTemplateView(template: template)
+                    if template != nil {
+                        Button {
+                            showEditWarning = true
                         } label: {
                             Image(systemName: "pencil")
                         }
                         .accessibilityLabel("Rediger sjekkliste")
                     }
+                }
+            }
+            .alert("Redigere sjekklisten?", isPresented: $showEditWarning) {
+                Button("Avbryt", role: .cancel) {}
+                Button("Fortsett") { navigateToEdit = true }
+            } message: {
+                Text("Endringer i lista gjelder for alle brukere og alle ambulanser, ikke bare deg.")
+            }
+            .navigationDestination(isPresented: $navigateToEdit) {
+                if let template {
+                    EditTemplateView(template: template)
                 }
             }
             .sheet(isPresented: $showSignSheet) {

@@ -11,6 +11,7 @@ struct EditTemplateView: View {
     @State private var bags: [ChecklistTemplate] = []
     @State private var showNewBagAlert = false
     @State private var newBagName = ""
+    @State private var editMode: EditMode = .inactive
 
     var body: some View {
         List {
@@ -32,7 +33,16 @@ struct EditTemplateView: View {
         }
         .navigationTitle("Rediger: \(template.name)")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { EditButton() }
+        .environment(\.editMode, $editMode)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(editMode == .active ? "Ferdig" : "Endre rekkefølge") {
+                    withAnimation {
+                        editMode = editMode == .active ? .inactive : .active
+                    }
+                }
+            }
+        }
         .alert("Ny sekk/taske", isPresented: $showNewBagAlert) {
             TextField("Navn, f.eks. Barnetaske", text: $newBagName)
             Button("Avbryt", role: .cancel) {}

@@ -20,13 +20,6 @@ struct ContentView: View {
 }
 
 // Plassholdere – bygges i neste inkrementer
-struct ChecklistRunView: View {
-    var body: some View {
-        Text("Sjekkliste – bygges i neste steg")
-            .foregroundStyle(.secondary)
-    }
-}
-
 struct DeficienciesView: View {
     var body: some View {
         Text("Mangler – bygges i neste steg")

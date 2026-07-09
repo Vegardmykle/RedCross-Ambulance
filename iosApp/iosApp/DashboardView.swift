@@ -36,6 +36,9 @@ struct DashboardView: View {
         .task {
             for await list in repo.ambulances() {
                 ambulances = list
+                if selectedAmbulanceId.isEmpty, let first = list.first {
+                    selectedAmbulanceId = first.id
+                }
             }
         }
         .task {

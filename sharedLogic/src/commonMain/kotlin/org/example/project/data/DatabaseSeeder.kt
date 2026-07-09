@@ -20,82 +20,85 @@ class DatabaseSeeder(private val db: AppDatabase) {
             // --- Ambulanse (eksempel) ---
             db.ambulanceQueries.insertAmbulance(randomId(), "Ambulanse 1", "")
 
+            // --- Testbruker (mannskaps-ID for signering) ---
+            db.userQueries.insertUser("12345", "Test Bruker", "Mannskap")
+
             // --- Daglig sjekkliste ---
             val daily = template("Daglig sjekk", TemplateType.DAILY)
             items(
                 daily,
-                "Drivstoff/lading (min. 3/4)",
-                "Motorolje og væsker",
-                "Dekk og lufttrykk",
-                "Lys, blålys og sirene",
-                "Samband (nødnettradio) – funksjonstest",
-                "Kupé ren og ryddig",
-                "Båre med stropper",
-                "Bærestol",
-                "Oksygen hovedflaske – nivå",
-                "Hjertestarter – egenkontroll OK",
-                "Sug – funksjonstest",
-                "Blodtrykksmåler",
-                "SpO2-måler",
-                "Termometer",
-                "Refleksvester",
-                "Brannslukker",
+                i("Drivstoff/lading (min. 3/4)"),
+                i("Motorolje og væsker"),
+                i("Dekk og lufttrykk"),
+                i("Lys, blålys og sirene"),
+                i("Samband (nødnettradio) – funksjonstest"),
+                i("Kupé ren og ryddig"),
+                i("Båre med stropper"),
+                i("Bærestol"),
+                v("Oksygen hovedflaske – nivå", "bar"),
+                i("Hjertestarter – egenkontroll OK"),
+                i("Sug – funksjonstest"),
+                i("Blodtrykksmåler"),
+                i("SpO2-måler"),
+                i("Termometer"),
+                i("Refleksvester"),
+                i("Brannslukker"),
             )
 
             // --- Sekker under daglig ---
             val akutt = template("Akuttsekk", TemplateType.BAG, parentId = daily)
             items(
                 akutt,
-                "BVM med reservoar",
-                "O2-flaske – nivå",
-                "Oksygenmasker (voksen/barn)",
-                "Munn-svelgtuber (alle størrelser)",
-                "Tourniquet",
-                "Bandasjemateriell",
-                "Sårrens (NaCl)",
-                "Saks",
-                "Hansker",
-                "Lommemaske",
+                i("BVM med reservoar"),
+                v("O2-flaske – nivå", "bar"),
+                i("Oksygenmasker (voksen/barn)"),
+                i("Munn-svelgtuber (alle størrelser)"),
+                i("Tourniquet"),
+                i("Bandasjemateriell"),
+                i("Sårrens (NaCl)"),
+                i("Saks"),
+                i("Hansker"),
+                i("Lommemaske"),
             )
 
             val oksygen = template("Oksygensekk", TemplateType.BAG, parentId = daily)
             items(
                 oksygen,
-                "O2-flaske – nivå og ventil",
-                "Regulator",
-                "Masker og slanger",
-                "Reservenøkkel til flaske",
+                v("O2-flaske – nivå og ventil", "bar"),
+                i("Regulator"),
+                i("Masker og slanger"),
+                i("Reservenøkkel til flaske"),
             )
 
             val medisin = template("Medisinveske", TemplateType.BAG, parentId = daily)
             items(
                 medisin,
-                "Naloxon nesespray – antall og utløpsdato",
-                "Glukose/gel",
-                "Medisinliste oppdatert",
-                "Plombering intakt",
+                i("Naloxon nesespray – antall og utløpsdato"),
+                i("Glukose/gel"),
+                i("Medisinliste oppdatert"),
+                i("Plombering intakt"),
             )
 
             // --- Ukentlig ---
             val weekly = template("Ukentlig sjekk", TemplateType.WEEKLY)
             items(
                 weekly,
-                "Full vask av kjøretøy",
-                "Kontroll av utløpsdatoer forbruksmateriell",
-                "Lading av reserveutstyr/batterier",
-                "Etterfylling fra stasjonslager",
-                "Funksjonstest av sug",
+                i("Full vask av kjøretøy"),
+                i("Kontroll av utløpsdatoer forbruksmateriell"),
+                i("Lading av reserveutstyr/batterier"),
+                i("Etterfylling fra stasjonslager"),
+                i("Funksjonstest av sug"),
             )
 
             // --- Månedlig ---
             val monthly = template("Månedlig sjekk", TemplateType.MONTHLY)
             items(
                 monthly,
-                "Gjennomgang beredskapsplan og tiltakskort",
-                "Hjertestarter – elektroder og batteri (utløpsdato)",
-                "Oksygenflasker – sertifisering og nivå",
-                "Inventar kontrollert mot innholdslister",
-                "Førstehjelpsutstyr – utløpsdatoer",
+                i("Gjennomgang beredskapsplan og tiltakskort"),
+                i("Hjertestarter – elektroder og batteri (utløpsdato)"),
+                v("Oksygenflasker – sertifisering og nivå", "bar"),
+                i("Inventar kontrollert mot innholdslister"),
+                i("Førstehjelpsutstyr – utløpsdatoer"),
             )
 
             // --- Standardlenker (URL settes i appen) ---
@@ -113,11 +116,21 @@ class DatabaseSeeder(private val db: AppDatabase) {
     }
 
     /** Legger inn punkter med stigende sortOrder. Må kalles inne i transaksjonen. */
-    private fun items(templateId: String, vararg titles: String) {
-        titles.forEachIndexed { index, title ->
+    private fun items(templateId: String, vararg specs: ItemSpec) {
+        specs.forEachIndexed { index, spec ->
             db.checklistItemQueries.insertItem(
-                randomId(), templateId, title, null, (index + 1).toLong(),
+                randomId(), templateId, spec.title, null,
+                if (spec.unit != null) 1L else 0L, spec.unit,
+                (index + 1).toLong(),
             )
         }
     }
+
+    private class ItemSpec(val title: String, val unit: String?)
+
+    /** Vanlig ja/nei-punkt. */
+    private fun i(title: String) = ItemSpec(title, null)
+
+    /** Punkt som krever avlest verdi (f.eks. trykk i bar). */
+    private fun v(title: String, unit: String) = ItemSpec(title, unit)
 }

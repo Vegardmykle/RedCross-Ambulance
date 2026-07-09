@@ -75,21 +75,34 @@ class ChecklistRepository(private val db: AppDatabase) {
         description: String? = null,
         requiresValue: Boolean = false,
         unit: String? = null,
+        minValue: Double? = null,
+        maxValue: Double? = null,
     ): String = withContext(Dispatchers.Default) {
         val id = randomId()
         val next = (db.checklistItemQueries.maxSortOrderForTemplate(templateId)
             .executeAsOne().maxSort ?: 0L) + 1
         db.checklistItemQueries.insertItem(
             id, templateId, title, description,
-            if (requiresValue) 1L else 0L, unit, next,
+            if (requiresValue) 1L else 0L, unit, minValue, maxValue, next,
         )
         id
     }
 
-    suspend fun updateItem(id: String, title: String, description: String?) =
-        withContext(Dispatchers.Default) {
-            db.checklistItemQueries.updateItem(id, title, description)
-        }
+    /** Redigering av punkt – inkludert grenseverdier (settes til null for å fjerne). */
+    suspend fun updateItem(
+        id: String,
+        title: String,
+        description: String?,
+        requiresValue: Boolean = false,
+        unit: String? = null,
+        minValue: Double? = null,
+        maxValue: Double? = null,
+    ) = withContext(Dispatchers.Default) {
+        db.checklistItemQueries.updateItem(
+            id, title, description,
+            if (requiresValue) 1L else 0L, unit, minValue, maxValue,
+        )
+    }
 
     suspend fun deleteItem(id: String) = withContext(Dispatchers.Default) {
         db.checklistItemQueries.deleteItem(id)
@@ -121,6 +134,10 @@ class ChecklistRepository(private val db: AppDatabase) {
         db.checklistResponseQueries.getResponsesForRun(runId)
             .asFlow().mapToList(Dispatchers.Default)
 
+    /**
+     * Lagrer svar. Lukkede kjøringer kan ikke endres.
+     * Avleste verdier utenfor punktets grenseverdier flagges automatisk som MANGELFULL.
+     */
     suspend fun setResponse(
         runId: String,
         itemId: String,
@@ -128,18 +145,50 @@ class ChecklistRepository(private val db: AppDatabase) {
         comment: String? = null,
         reading: String? = null,
     ) = withContext(Dispatchers.Default) {
-        require(reading == null || reading.toDoubleOrNull() != null) {
-            "Avlest verdi må være et tall"
+        val value = reading?.let {
+            requireNotNull(it.toDoubleOrNull()) { "Avlest verdi må være et tall" }
         }
+
+        val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
+        check(run != null && run.status == "IN_PROGRESS") {
+            "Sjekklisten er lukket og kan ikke endres"
+        }
+
+        var finalResult = result
+        var finalComment = comment
+        if (value != null) {
+            val item = db.checklistItemQueries.getItemById(itemId).executeAsOneOrNull()
+            val min = item?.minValue
+            val max = item?.maxValue
+            if ((min != null && value < min) || (max != null && value > max)) {
+                finalResult = ItemResult.MANGELFULL
+                if (finalComment.isNullOrBlank()) {
+                    val unit = item?.unit.orEmpty()
+                    finalComment = buildString {
+                        append("Avlest $reading $unit er utenfor grense")
+                        if (min != null) append(" (min ${fmt(min)})")
+                        if (max != null) append(" (maks ${fmt(max)})")
+                    }
+                }
+            }
+        }
+
         db.checklistResponseQueries.upsertResponse(
-            randomId(), runId, itemId, result.db, comment, reading, currentTimeMillis(),
+            randomId(), runId, itemId, finalResult.db, finalComment, reading, currentTimeMillis(),
         )
     }
 
-    /** Krever mannskaps-ID (User.id) for å lukke lista. */
+    private fun fmt(value: Double): String =
+        if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
+
+    /** Krever mannskaps-ID (User.id) for å lukke lista. Kan bare lukkes én gang. */
     suspend fun completeRun(runId: String, userId: String, comment: String? = null) =
         withContext(Dispatchers.Default) {
             require(userId.isNotBlank()) { "Mannskaps-ID er påkrevd" }
+            val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
+            check(run != null && run.status == "IN_PROGRESS") {
+                "Sjekklisten er allerede lukket"
+            }
             db.checklistRunQueries.completeRun(runId, currentTimeMillis(), userId, comment)
         }
 

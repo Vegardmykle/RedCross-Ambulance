@@ -35,7 +35,7 @@ class DatabaseSeeder(private val db: AppDatabase) {
                 i("Kupé ren og ryddig"),
                 i("Båre med stropper"),
                 i("Bærestol"),
-                v("Oksygen hovedflaske – nivå", "bar"),
+                v("Oksygen hovedflaske – nivå", "bar", min = 150.0, max = 300.0),
                 i("Hjertestarter – egenkontroll OK"),
                 i("Sug – funksjonstest"),
                 i("Blodtrykksmåler"),
@@ -50,7 +50,7 @@ class DatabaseSeeder(private val db: AppDatabase) {
             items(
                 akutt,
                 i("BVM med reservoar"),
-                v("O2-flaske – nivå", "bar"),
+                v("O2-flaske – nivå", "bar", min = 150.0, max = 300.0),
                 i("Oksygenmasker (voksen/barn)"),
                 i("Munn-svelgtuber (alle størrelser)"),
                 i("Tourniquet"),
@@ -64,7 +64,7 @@ class DatabaseSeeder(private val db: AppDatabase) {
             val oksygen = template("Oksygensekk", TemplateType.BAG, parentId = daily)
             items(
                 oksygen,
-                v("O2-flaske – nivå og ventil", "bar"),
+                v("O2-flaske – nivå og ventil", "bar", min = 150.0, max = 300.0),
                 i("Regulator"),
                 i("Masker og slanger"),
                 i("Reservenøkkel til flaske"),
@@ -96,7 +96,7 @@ class DatabaseSeeder(private val db: AppDatabase) {
                 monthly,
                 i("Gjennomgang beredskapsplan og tiltakskort"),
                 i("Hjertestarter – elektroder og batteri (utløpsdato)"),
-                v("Oksygenflasker – sertifisering og nivå", "bar"),
+                v("Oksygenflasker – sertifisering og nivå", "bar", min = 150.0, max = 300.0),
                 i("Inventar kontrollert mot innholdslister"),
                 i("Førstehjelpsutstyr – utløpsdatoer"),
             )
@@ -121,16 +121,23 @@ class DatabaseSeeder(private val db: AppDatabase) {
             db.checklistItemQueries.insertItem(
                 randomId(), templateId, spec.title, null,
                 if (spec.unit != null) 1L else 0L, spec.unit,
+                spec.min, spec.max,
                 (index + 1).toLong(),
             )
         }
     }
 
-    private class ItemSpec(val title: String, val unit: String?)
+    private class ItemSpec(
+        val title: String,
+        val unit: String?,
+        val min: Double? = null,
+        val max: Double? = null,
+    )
 
     /** Vanlig ja/nei-punkt. */
     private fun i(title: String) = ItemSpec(title, null)
 
-    /** Punkt som krever avlest verdi (f.eks. trykk i bar). */
-    private fun v(title: String, unit: String) = ItemSpec(title, unit)
+    /** Punkt som krever avlest verdi. Verdier utenfor [min, max] flagges som avvik. */
+    private fun v(title: String, unit: String, min: Double? = null, max: Double? = null) =
+        ItemSpec(title, unit, min, max)
 }

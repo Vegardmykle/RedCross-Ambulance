@@ -78,108 +78,139 @@ struct ChecklistRunScreen: View {
     }
 
     var body: some View {
-            List {
-                progressSection
-
-                Section("Utstyr") {
-                    ForEach(sortedByAnswer(items), id: \.id) { item in
-                        ChecklistItemRow(
-                            item: item,
-                            response: responses[item.id],
-                            hasEarlierDeficiency: earlierDeficiencyItemIds.contains(item.id),
-                            onAnswer: { choice, comment, reading in
-                                await answer(item: item, choice: choice, comment: comment, reading: reading)
-                            }
-                        )
-                    }
-                }
-
-                ForEach(bags, id: \.id) { bag in
-                    BagSection(
-                        bag: bag,
-                        responses: responses,
-                        earlierDeficiencyItemIds: earlierDeficiencyItemIds,
-                        onItemsChange: { bagItems[bag.id] = $0 },
-                        onAnswer: { item, choice, comment, reading in
-                            await answer(item: item, choice: choice, comment: comment, reading: reading)
-                        }
-                    )
-                }
-
-                signSection
-            }
+        checklistList
             .navigationTitle(template?.name ?? "Sjekkliste")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    if template != nil {
-                        Button {
-                            showEditWarning = true
-                        } label: {
-                            Image(systemName: "pencil")
-                        }
-                        .accessibilityLabel("Rediger sjekkliste")
-                    }
-                }
-            }
+            .toolbar { editToolbarItem }
             .alert("Redigere sjekklisten?", isPresented: $showEditWarning) {
                 Button("Avbryt", role: .cancel) {}
                 Button("Fortsett") { navigateToEdit = true }
             } message: {
                 Text("Endringer i lista gjelder for alle brukere og alle ambulanser, ikke bare deg.")
             }
-            .navigationDestination(isPresented: $navigateToEdit) {
-                if let template {
-                    EditTemplateView(template: template)
-                }
-            }
-            .sheet(isPresented: $showSignSheet) {
-                SignSheetView(
-                    deficiencies: deficiencies,
-                    onSign: { userId in await complete(userId: userId) }
+            .navigationDestination(isPresented: $navigateToEdit) { editDestination }
+            .sheet(isPresented: $showSignSheet) { signSheet }
+            .task { await observeAmbulances() }
+            .task { await observeTemplates() }
+            .task(id: "\(template?.id ?? "")|\(selectedAmbulanceId)") { await startRunIfReady() }
+            .task(id: template?.id ?? "") { await observeItems() }
+            .task(id: template?.id ?? "") { await observeBags() }
+            .task(id: run?.id ?? "") { await observeResponses() }
+            .task(id: run?.id ?? "") { await observeEarlierDeficiencies() }
+    }
+
+    private var checklistList: some View {
+        List {
+            progressSection
+            equipmentSection
+            bagSectionsView
+            signSection
+        }
+    }
+
+    private var equipmentSection: some View {
+        Section("Utstyr") {
+            ForEach(sortedByAnswer(items), id: \.id) { item in
+                ChecklistItemRow(
+                    item: item,
+                    response: responses[item.id],
+                    hasEarlierDeficiency: earlierDeficiencyItemIds.contains(item.id),
+                    onAnswer: { choice, comment, reading in
+                        await answer(item: item, choice: choice, comment: comment, reading: reading)
+                    }
                 )
             }
-        .task {
-            for await list in repo.ambulances() {
-                if selectedAmbulanceId.isEmpty, let first = list.first {
-                    selectedAmbulanceId = first.id
+        }
+    }
+
+    private var bagSectionsView: some View {
+        ForEach(bags, id: \.id) { bag in
+            BagSection(
+                bag: bag,
+                responses: responses,
+                earlierDeficiencyItemIds: earlierDeficiencyItemIds,
+                onItemsChange: { bagItems[bag.id] = $0 },
+                onAnswer: { item, choice, comment, reading in
+                    await answer(item: item, choice: choice, comment: comment, reading: reading)
                 }
+            )
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var editToolbarItem: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            if template != nil {
+                Button {
+                    showEditWarning = true
+                } label: {
+                    Image(systemName: "pencil")
+                }
+                .accessibilityLabel("Rediger sjekkliste")
             }
         }
-        .task {
-            for await list in repo.topLevelTemplates() {
-                template = list.first { $0.type == templateType }
+    }
+
+    @ViewBuilder
+    private var editDestination: some View {
+        if let template {
+            EditTemplateView(template: template)
+        }
+    }
+
+    private var signSheet: some View {
+        SignSheetView(
+            deficiencies: deficiencies,
+            onSign: { userId in await complete(userId: userId) }
+        )
+    }
+
+    private func observeAmbulances() async {
+        for await list in repo.ambulances() {
+            if selectedAmbulanceId.isEmpty, let first = list.first {
+                selectedAmbulanceId = first.id
             }
         }
-        .task(id: "\(template?.id ?? "")|\(selectedAmbulanceId)") {
-            guard let template, !selectedAmbulanceId.isEmpty else { return }
-            await loadRun(templateId: template.id)
+    }
+
+    private func observeTemplates() async {
+        for await list in repo.topLevelTemplates() {
+            template = list.first { $0.type == templateType }
         }
-        .task(id: template?.id ?? "") {
-            guard let template else { return }
-            for await list in repo.itemsFor(templateId: template.id) {
-                items = list
-            }
+    }
+
+    private func startRunIfReady() async {
+        guard let template, !selectedAmbulanceId.isEmpty else { return }
+        await loadRun(templateId: template.id)
+    }
+
+    private func observeItems() async {
+        guard let template else { return }
+        for await list in repo.itemsFor(templateId: template.id) {
+            items = list
         }
-        .task(id: template?.id ?? "") {
-            guard let template else { return }
-            for await list in repo.bagsFor(templateId: template.id) {
-                bags = list
-            }
+    }
+
+    private func observeBags() async {
+        guard let template else { return }
+        for await list in repo.bagsFor(templateId: template.id) {
+            bags = list
         }
-        .task(id: run?.id ?? "") {
-            guard let run else { return }
-            for await list in repo.responsesForRun(runId: run.id) {
-                responses = Dictionary(uniqueKeysWithValues: list.map { ($0.itemId, $0) })
-            }
+    }
+
+    private func observeResponses() async {
+        guard let run else { return }
+        for await list in repo.responsesForRun(runId: run.id) {
+            responses = Dictionary(uniqueKeysWithValues: list.map { ($0.itemId, $0) })
         }
-        .task(id: run?.id ?? "") {
-            guard let run else { return }
-            for await ids in repo.itemIdsWithOpenDeficiencies(
-                ambulanceId: run.ambulanceId,
-                excludeRunId: run.id
-            ) {
-                earlierDeficiencyItemIds = Set(ids)
-            }
+    }
+
+    private func observeEarlierDeficiencies() async {
+        guard let run else { return }
+        for await ids in repo.itemIdsWithOpenDeficiencies(
+            ambulanceId: run.ambulanceId,
+            excludeRunId: run.id
+        ) {
+            earlierDeficiencyItemIds = Set(ids)
         }
     }
 

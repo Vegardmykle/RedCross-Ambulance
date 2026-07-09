@@ -19,10 +19,3 @@ struct ContentView: View {
     }
 }
 
-// Plassholdere – bygges i neste inkrementer
-struct ResourcesView: View {
-    var body: some View {
-        Text("Ressurser – bygges i neste steg")
-            .foregroundStyle(.secondary)
-    }
-}

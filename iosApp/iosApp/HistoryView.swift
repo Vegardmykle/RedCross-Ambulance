@@ -16,7 +16,11 @@ struct HistoryView: View {
                 )
             } else {
                 List(runs, id: \.id) { run in
-                    HistoryRow(run: run)
+                    NavigationLink {
+                        RunDetailView(run: run)
+                    } label: {
+                        HistoryRow(run: run)
+                    }
                 }
             }
         }
@@ -58,6 +62,31 @@ struct HistoryRow: View {
         return formatter.string(from: date)
     }
 
+    @ViewBuilder
+    private var deviationLabel: some View {
+        let total = run.deviationCount
+        let resolved = run.resolvedCount
+        let open = total - resolved
+
+        if total == 0 {
+            Label("Ingen avvik", systemImage: "checkmark.circle")
+                .font(.caption)
+                .foregroundStyle(.green)
+        } else if open == 0 {
+            Label(total == 1 ? "Avviket er løst" : "Alle \(total) avvik løst", systemImage: "checkmark.circle")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(.green)
+        } else {
+            let openText = open == 1 ? "1 åpent avvik" : "\(open) åpne avvik"
+            let text = resolved > 0 ? "\(openText) · \(resolved) løst" : openText
+            Label(text, systemImage: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(Color.rkError)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top) {
@@ -78,6 +107,8 @@ struct HistoryRow: View {
             Text("\(run.callSign) · \(dateText)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            deviationLabel
 
             if let name = run.signedByName {
                 Text("Signert av \(name)")

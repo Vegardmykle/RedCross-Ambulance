@@ -11,6 +11,7 @@ import database.ChecklistTemplate
 import database.Document
 import database.GetOpenDeficiencies
 import database.GetRecentRuns
+import database.GetResponsesWithItemsForRun
 import database.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -198,6 +199,11 @@ class ChecklistRepository(private val db: AppDatabase) {
             }
             db.checklistRunQueries.completeRun(runId, currentTimeMillis(), userId, comment)
         }
+
+    /** Til arkivet: alle svar i en kjøring, med punkttittel og liste/sekk-navn. */
+    fun responsesWithItems(runId: String): Flow<List<GetResponsesWithItemsForRun>> =
+        db.checklistResponseQueries.getResponsesWithItemsForRun(runId)
+            .asFlow().mapToList(Dispatchers.Default)
 
     fun recentRuns(limit: Long = 20): Flow<List<GetRecentRuns>> =
         db.checklistRunQueries.getRecentRuns(limit)

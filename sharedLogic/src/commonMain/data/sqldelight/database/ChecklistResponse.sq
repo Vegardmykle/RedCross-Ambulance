@@ -33,6 +33,20 @@ SELECT *
 FROM ChecklistResponse
 WHERE checklistRunId = ?1;
 
+-- Til arkivet: alle svar i en kjøring med punkttittel og hvilken liste/sekk de hører til
+getResponsesWithItemsForRun:
+SELECT
+    ChecklistResponse.*,
+    ChecklistItem.title AS itemTitle,
+    ChecklistItem.unit,
+    ChecklistTemplate.name AS listName,
+    ChecklistTemplate.parentId
+FROM ChecklistResponse
+JOIN ChecklistItem ON ChecklistItem.id = ChecklistResponse.itemId
+JOIN ChecklistTemplate ON ChecklistTemplate.id = ChecklistItem.templateId
+WHERE checklistRunId = ?1
+ORDER BY ChecklistTemplate.parentId IS NOT NULL, ChecklistTemplate.name, ChecklistItem.sortOrder;
+
 countResponsesForRun:
 SELECT COUNT(*)
 FROM ChecklistResponse

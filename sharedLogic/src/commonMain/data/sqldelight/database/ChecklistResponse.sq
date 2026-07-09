@@ -9,6 +9,12 @@ CREATE TABLE ChecklistResponse (
     resolved INTEGER NOT NULL DEFAULT 0, -- 1 når avviket er fulgt opp
     resolvedAt INTEGER, -- når avviket ble markert som løst
     resolvedReading TEXT, -- ny avlest verdi ved løsing (gammel ligger i reading)
+    resolvedVia TEXT CHECK (resolvedVia IN ('MANUAL','RECHECK','SUPERSEDED')), -- manuelt / OK ved senere kontroll / erstattet av nytt avvik
+    resolvedByRunId TEXT, -- kjøringen som lukket avviket (for angring)
+    resolvedByUserId TEXT, -- mannskaps-ID som signerte manuell løsing
+
+    FOREIGN KEY (resolvedByUserId)
+        REFERENCES User(id),
 
     UNIQUE (checklistRunId, itemId),
 
@@ -20,8 +26,8 @@ CREATE TABLE ChecklistResponse (
 );
 
 upsertResponse:
-INSERT OR REPLACE INTO ChecklistResponse(id, checklistRunId, itemId, result, comment, reading, checkedAt, resolved, resolvedAt, resolvedReading)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, NULL, NULL);
+INSERT OR REPLACE INTO ChecklistResponse(id, checklistRunId, itemId, result, comment, reading, checkedAt, resolved, resolvedAt, resolvedReading, resolvedVia, resolvedByRunId, resolvedByUserId)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, NULL, NULL, NULL, NULL, NULL);
 
 getResponseById:
 SELECT *
@@ -40,10 +46,12 @@ SELECT
     ChecklistItem.title AS itemTitle,
     ChecklistItem.unit,
     ChecklistTemplate.name AS listName,
-    ChecklistTemplate.parentId
+    ChecklistTemplate.parentId,
+    ResolvedUser.name AS resolvedByName
 FROM ChecklistResponse
 JOIN ChecklistItem ON ChecklistItem.id = ChecklistResponse.itemId
 JOIN ChecklistTemplate ON ChecklistTemplate.id = ChecklistItem.templateId
+LEFT JOIN User AS ResolvedUser ON ResolvedUser.id = ChecklistResponse.resolvedByUserId
 WHERE checklistRunId = ?1
 ORDER BY ChecklistTemplate.parentId IS NOT NULL, ChecklistTemplate.name, ChecklistItem.sortOrder;
 
@@ -55,6 +63,8 @@ WHERE checklistRunId = ?1;
 getOpenDeficiencies:
 SELECT
     ChecklistResponse.id,
+    ChecklistResponse.itemId,
+    ChecklistResponse.checklistRunId,
     ChecklistResponse.result,
     ChecklistResponse.comment,
     ChecklistResponse.reading,
@@ -80,5 +90,47 @@ ORDER BY ChecklistResponse.checkedAt DESC;
 
 resolveDeficiency:
 UPDATE ChecklistResponse
-SET resolved = 1, resolvedAt = ?2, resolvedReading = ?3
+SET resolved = 1, resolvedAt = ?2, resolvedReading = ?3, resolvedVia = 'MANUAL', resolvedByUserId = ?4
 WHERE id = ?1;
+
+-- Lukk tidligere åpne avvik på samme punkt/ambulanse fra en senere kontroll.
+-- ?5 = 'RECHECK' (punktet er OK nå) eller 'SUPERSEDED' (nytt avvik erstatter det gamle)
+resolveEarlierDeficiencies:
+UPDATE ChecklistResponse
+SET resolved = 1, resolvedAt = ?3, resolvedReading = ?4, resolvedVia = ?5, resolvedByRunId = ?2
+WHERE itemId = ?1
+  AND resolved = 0
+  AND result != 'JA'
+  AND checklistRunId != ?2
+  AND checklistRunId IN (
+      SELECT id FROM ChecklistRun
+      WHERE ambulanceId = (SELECT ambulanceId FROM ChecklistRun WHERE id = ?2)
+  );
+
+-- Forgjengeren i en videreført-kjede: avviket som ble erstattet av kjøringen ?2
+getSupersededPredecessor:
+SELECT ChecklistResponse.checkedAt, ChecklistResponse.checklistRunId, User.name AS signedByName
+FROM ChecklistResponse
+JOIN ChecklistRun ON ChecklistRun.id = ChecklistResponse.checklistRunId
+LEFT JOIN User ON User.id = ChecklistRun.userId
+WHERE ChecklistResponse.itemId = ?1
+  AND ChecklistResponse.resolvedByRunId = ?2
+  AND ChecklistResponse.resolvedVia = 'SUPERSEDED'
+LIMIT 1;
+
+-- Angring: hvis svaret i gjeldende kjøring endres, nullstill lukkinger denne kjøringen forårsaket
+undoResolutionsByRun:
+UPDATE ChecklistResponse
+SET resolved = 0, resolvedAt = NULL, resolvedReading = NULL, resolvedVia = NULL, resolvedByRunId = NULL
+WHERE itemId = ?1
+  AND resolvedByRunId = ?2;
+
+-- Punkter med åpne avvik fra tidligere kontroller (samme ambulanse, ikke gjeldende kjøring)
+getItemIdsWithOpenDeficiencies:
+SELECT DISTINCT ChecklistResponse.itemId
+FROM ChecklistResponse
+JOIN ChecklistRun ON ChecklistRun.id = ChecklistResponse.checklistRunId
+WHERE ChecklistRun.ambulanceId = ?1
+  AND ChecklistResponse.checklistRunId != ?2
+  AND ChecklistResponse.resolved = 0
+  AND ChecklistResponse.result != 'JA';

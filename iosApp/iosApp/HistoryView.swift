@@ -66,25 +66,39 @@ struct HistoryRow: View {
     private var deviationLabel: some View {
         let total = run.deviationCount
         let resolved = run.resolvedCount
-        let open = total - resolved
+        let superseded = run.supersededCount
+        let open = total - resolved - superseded
 
         if total == 0 {
             Label("Ingen avvik", systemImage: "checkmark.circle")
                 .font(.caption)
                 .foregroundStyle(.green)
-        } else if open == 0 {
+        } else if open > 0 {
+            Label(openLabelText(open: open, resolved: resolved, superseded: superseded), systemImage: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(Color.rkError)
+        } else if superseded > 0 {
+            let text = resolved > 0
+                ? "\(superseded) videreført · \(resolved) løst"
+                : (superseded == 1 ? "1 avvik videreført" : "\(superseded) avvik videreført")
+            Label(text, systemImage: "arrow.triangle.2.circlepath")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(.orange)
+        } else {
             Label(total == 1 ? "Avviket er løst" : "Alle \(total) avvik løst", systemImage: "checkmark.circle")
                 .font(.caption)
                 .fontWeight(.medium)
                 .foregroundStyle(.green)
-        } else {
-            let openText = open == 1 ? "1 åpent avvik" : "\(open) åpne avvik"
-            let text = resolved > 0 ? "\(openText) · \(resolved) løst" : openText
-            Label(text, systemImage: "exclamationmark.triangle.fill")
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundStyle(Color.rkError)
         }
+    }
+
+    private func openLabelText(open: Int64, resolved: Int64, superseded: Int64) -> String {
+        var parts = [open == 1 ? "1 åpent avvik" : "\(open) åpne avvik"]
+        if resolved > 0 { parts.append("\(resolved) løst") }
+        if superseded > 0 { parts.append("\(superseded) videreført") }
+        return parts.joined(separator: " · ")
     }
 
     var body: some View {

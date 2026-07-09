@@ -65,12 +65,16 @@ struct ResponseDetailRow: View {
 
     private var isResolved: Bool { response.resolved != 0 }
 
+    private var isSuperseded: Bool { response.resolvedVia == "SUPERSEDED" }
+
     private var badgeText: String {
-        isResolved ? "Løst" : (choice?.label ?? response.result)
+        if isSuperseded { return "Videreført" }
+        return isResolved ? "Løst" : (choice?.label ?? response.result)
     }
 
     private var badgeColor: Color {
-        isResolved ? .green : (choice?.color ?? .secondary)
+        if isSuperseded { return .orange }
+        return isResolved ? .green : (choice?.color ?? .secondary)
     }
 
     var body: some View {
@@ -103,18 +107,28 @@ struct ResponseDetailRow: View {
 
             if isResolved, let resolvedAt = response.resolvedAt {
                 HStack(spacing: 4) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    if let newReading = response.resolvedReading, !newReading.isEmpty {
-                        Text("Var \(choice?.label.lowercased() ?? "avvik") · løst \(RunDetailView.format(resolvedAt.int64Value)) · ny verdi \(newReading) \(response.unit ?? "")")
-                    } else {
-                        Text("Var \(choice?.label.lowercased() ?? "avvik") · løst \(RunDetailView.format(resolvedAt.int64Value))")
-                    }
+                    Image(systemName: isSuperseded ? "arrow.triangle.2.circlepath" : "checkmark.circle.fill")
+                        .foregroundStyle(isSuperseded ? .orange : .green)
+                    Text(resolvedText(at: resolvedAt.int64Value))
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private func resolvedText(at millis: Int64) -> String {
+        let was = "Var \(choice?.label.lowercased() ?? "avvik")"
+        let how = switch response.resolvedVia {
+        case "RECHECK": "OK ved senere kontroll"
+        case "SUPERSEDED": "videreført til senere kontroll"
+        default: response.resolvedByName.map { "løst av \($0)" } ?? "løst manuelt"
+        }
+        var text = "\(was) · \(how) \(RunDetailView.format(millis))"
+        if let newReading = response.resolvedReading, !newReading.isEmpty {
+            text += " · ny verdi \(newReading) \(response.unit ?? "")"
+        }
+        return text
     }
 }

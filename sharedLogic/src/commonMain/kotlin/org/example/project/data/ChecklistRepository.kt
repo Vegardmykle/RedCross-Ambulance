@@ -15,9 +15,11 @@ import database.GetResponsesWithItemsForRun
 import database.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.example.project.db.AppDatabase
 import org.example.project.model.ItemResult
+import org.example.project.model.OpenDeficiency
 import org.example.project.model.TemplateType
 import kotlin.coroutines.cancellation.CancellationException
 import org.example.project.util.currentTimeMillis
@@ -183,9 +185,24 @@ class ChecklistRepository(private val db: AppDatabase) {
             }
         }
 
-        db.checklistResponseQueries.upsertResponse(
-            randomId(), runId, itemId, finalResult.db, finalComment, reading, currentTimeMillis(),
-        )
+        db.transaction {
+            db.checklistResponseQueries.upsertResponse(
+                randomId(), runId, itemId, finalResult.db, finalComment, reading, currentTimeMillis(),
+            )
+            // Angre eventuelle lukkinger denne kjøringen har gjort på punktet
+            // (håndterer at man bytter svar frem og tilbake)
+            db.checklistResponseQueries.undoResolutionsByRun(itemId, runId)
+            // Lukk tidligere åpne avvik: OK nå = RECHECK, nytt avvik = SUPERSEDED
+            if (finalResult == ItemResult.JA) {
+                db.checklistResponseQueries.resolveEarlierDeficiencies(
+                    itemId, runId, currentTimeMillis(), reading, "RECHECK",
+                )
+            } else {
+                db.checklistResponseQueries.resolveEarlierDeficiencies(
+                    itemId, runId, currentTimeMillis(), null, "SUPERSEDED",
+                )
+            }
+        }
     }
 
     private fun fmt(value: Double): String =
@@ -214,18 +231,62 @@ class ChecklistRepository(private val db: AppDatabase) {
 
     // ---------- Mangler ----------
 
-    fun openDeficiencies(): Flow<List<GetOpenDeficiencies>> =
-        db.checklistResponseQueries.getOpenDeficiencies()
+    /** Punkter som har åpne avvik fra tidligere kontroller (vises som varsel i ny kjøring). */
+    fun itemIdsWithOpenDeficiencies(ambulanceId: String, excludeRunId: String): Flow<List<String>> =
+        db.checklistResponseQueries.getItemIdsWithOpenDeficiencies(ambulanceId, excludeRunId)
             .asFlow().mapToList(Dispatchers.Default)
 
+    fun openDeficiencies(): Flow<List<OpenDeficiency>> =
+        db.checklistResponseQueries.getOpenDeficiencies()
+            .asFlow().mapToList(Dispatchers.Default)
+            .map { rows -> rows.map { it.toOpenDeficiency() } }
+
+    private fun GetOpenDeficiencies.toOpenDeficiency(): OpenDeficiency {
+        // Følg videreført-kjeden bakover til den opprinnelige meldingen
+        var currentRunId = checklistRunId
+        var earliestAt: Long? = null
+        var earliestBy: String? = null
+        while (true) {
+            val prev = db.checklistResponseQueries
+                .getSupersededPredecessor(itemId, currentRunId)
+                .executeAsOneOrNull() ?: break
+            earliestAt = prev.checkedAt
+            earliestBy = prev.signedByName
+            currentRunId = prev.checklistRunId
+        }
+        return OpenDeficiency(
+            id = id,
+            result = result,
+            comment = comment,
+            reading = reading,
+            checkedAt = checkedAt,
+            itemTitle = itemTitle,
+            requiresValue = requiresValue,
+            unit = unit,
+            minValue = minValue,
+            maxValue = maxValue,
+            listName = listName,
+            callSign = callSign,
+            signedByName = signedByName,
+            firstReportedAt = earliestAt,
+            firstReportedByName = earliestBy,
+        )
+    }
+
     /**
-     * Markerer et avvik som løst. For målepunkter kreves ny avlest verdi,
-     * og den må være innenfor punktets grenseverdier.
-     * Gammel verdi (reading), ny verdi (resolvedReading) og tidspunkt (resolvedAt) bevares.
+     * Markerer et avvik som løst. Krever signatur med gyldig mannskaps-ID.
+     * For målepunkter kreves ny avlest verdi innenfor punktets grenseverdier.
+     * Gammel verdi (reading), ny verdi (resolvedReading), tidspunkt (resolvedAt)
+     * og hvem som løste det (resolvedByUserId) bevares.
      */
     @Throws(IllegalStateException::class, IllegalArgumentException::class, CancellationException::class)
-    suspend fun resolveDeficiency(responseId: String, newReading: String? = null) =
+    suspend fun resolveDeficiency(responseId: String, userId: String, newReading: String? = null) =
         withContext(Dispatchers.Default) {
+            require(userId.isNotBlank()) { "Mannskaps-ID er påkrevd" }
+            requireNotNull(db.userQueries.getUserById(userId).executeAsOneOrNull()) {
+                "Ukjent mannskaps-ID"
+            }
+
             val response = db.checklistResponseQueries.getResponseById(responseId).executeAsOneOrNull()
             checkNotNull(response) { "Fant ikke avviket" }
             check(response.resolved == 0L) { "Avviket er allerede løst" }
@@ -246,7 +307,7 @@ class ChecklistRepository(private val db: AppDatabase) {
                 reading = newReading
             }
 
-            db.checklistResponseQueries.resolveDeficiency(responseId, currentTimeMillis(), reading)
+            db.checklistResponseQueries.resolveDeficiency(responseId, currentTimeMillis(), reading, userId)
         }
 
     // ---------- Mannskap ----------

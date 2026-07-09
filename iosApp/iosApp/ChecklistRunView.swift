@@ -49,6 +49,7 @@ struct ChecklistRunView: View {
     @State private var bags: [ChecklistTemplate] = []
     @State private var bagItems: [String: [ChecklistItem]] = [:]
     @State private var responses: [String: ChecklistResponse] = [:]
+    @State private var earlierDeficiencyItemIds: Set<String> = []
     @State private var showSignSheet = false
     @State private var justCompleted = false
 
@@ -74,6 +75,7 @@ struct ChecklistRunView: View {
                         ChecklistItemRow(
                             item: item,
                             response: responses[item.id],
+                            hasEarlierDeficiency: earlierDeficiencyItemIds.contains(item.id),
                             onAnswer: { choice, comment, reading in
                                 await answer(item: item, choice: choice, comment: comment, reading: reading)
                             }
@@ -85,6 +87,7 @@ struct ChecklistRunView: View {
                     BagSection(
                         bag: bag,
                         responses: responses,
+                        earlierDeficiencyItemIds: earlierDeficiencyItemIds,
                         onItemsChange: { bagItems[bag.id] = $0 },
                         onAnswer: { item, choice, comment, reading in
                             await answer(item: item, choice: choice, comment: comment, reading: reading)
@@ -134,6 +137,15 @@ struct ChecklistRunView: View {
             guard let run else { return }
             for await list in repo.responsesForRun(runId: run.id) {
                 responses = Dictionary(uniqueKeysWithValues: list.map { ($0.itemId, $0) })
+            }
+        }
+        .task(id: run?.id ?? "") {
+            guard let run else { return }
+            for await ids in repo.itemIdsWithOpenDeficiencies(
+                ambulanceId: run.ambulanceId,
+                excludeRunId: run.id
+            ) {
+                earlierDeficiencyItemIds = Set(ids)
             }
         }
     }
@@ -233,6 +245,7 @@ struct ChecklistRunView: View {
 struct ChecklistItemRow: View {
     let item: ChecklistItem
     let response: ChecklistResponse?
+    var hasEarlierDeficiency = false
     let onAnswer: (AnswerChoice, String?, String?) async -> Void
 
     @State private var showCommentAlert = false
@@ -247,6 +260,12 @@ struct ChecklistItemRow: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(item.title)
                 .font(.body)
+            if hasEarlierDeficiency {
+                Label("Åpent avvik fra tidligere kontroll", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.orange)
+            }
             if let description = item.description_, !description.isEmpty {
                 Text(description)
                     .font(.caption)
@@ -345,6 +364,7 @@ struct ChecklistItemRow: View {
 struct BagSection: View {
     let bag: ChecklistTemplate
     let responses: [String: ChecklistResponse]
+    var earlierDeficiencyItemIds: Set<String> = []
     let onItemsChange: ([ChecklistItem]) -> Void
     let onAnswer: (ChecklistItem, AnswerChoice, String?, String?) async -> Void
 
@@ -371,6 +391,7 @@ struct BagSection: View {
                     ChecklistItemRow(
                         item: item,
                         response: responses[item.id],
+                        hasEarlierDeficiency: earlierDeficiencyItemIds.contains(item.id),
                         onAnswer: { choice, comment, reading in
                             await onAnswer(item, choice, comment, reading)
                         }

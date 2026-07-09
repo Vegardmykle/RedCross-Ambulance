@@ -56,7 +56,13 @@ SELECT ChecklistRun.*, ChecklistTemplate.name AS templateName, Ambulance.callSig
      FROM ChecklistResponse
      WHERE ChecklistResponse.checklistRunId = ChecklistRun.id
        AND ChecklistResponse.result != 'JA'
-       AND ChecklistResponse.resolved = 1) AS resolvedCount
+       AND ChecklistResponse.resolved = 1
+       AND ChecklistResponse.resolvedVia != 'SUPERSEDED') AS resolvedCount,
+    (SELECT COUNT(*)
+     FROM ChecklistResponse
+     WHERE ChecklistResponse.checklistRunId = ChecklistRun.id
+       AND ChecklistResponse.result != 'JA'
+       AND ChecklistResponse.resolvedVia = 'SUPERSEDED') AS supersededCount
 FROM ChecklistRun
 JOIN ChecklistTemplate ON ChecklistTemplate.id = ChecklistRun.templateId
 JOIN Ambulance ON Ambulance.id = ChecklistRun.ambulanceId

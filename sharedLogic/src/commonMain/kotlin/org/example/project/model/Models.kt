@@ -12,6 +12,28 @@ enum class ItemResult(val db: String, val label: String) {
     }
 }
 
+/**
+ * Åpent avvik til Mangler-siden. Hvis avviket er videreført fra tidligere
+ * kontroller, peker firstReportedAt/firstReportedByName på den opprinnelige meldingen.
+ */
+data class OpenDeficiency(
+    val id: String,
+    val result: String,
+    val comment: String?,
+    val reading: String?,
+    val checkedAt: Long,
+    val itemTitle: String,
+    val requiresValue: Long,
+    val unit: String?,
+    val minValue: Double?,
+    val maxValue: Double?,
+    val listName: String,
+    val callSign: String,
+    val signedByName: String?,
+    val firstReportedAt: Long?,
+    val firstReportedByName: String?,
+)
+
 enum class TemplateType(val db: String, val label: String) {
     DAILY("DAILY", "Daglig"),
     WEEKLY("WEEKLY", "Ukentlig"),

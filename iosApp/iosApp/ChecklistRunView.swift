@@ -274,25 +274,39 @@ struct ChecklistItemRow: View {
         .padding(.vertical, 4)
         .alert("Kommentar", isPresented: $showCommentAlert) {
             TextField("Beskriv avviket", text: $commentText)
+            Button("Avbryt", role: .cancel) {}
             Button("Lagre") {
                 if let choice = pendingChoice {
                     let comment = commentText
                     Task { await onAnswer(choice, comment.isEmpty ? nil : comment, nil) }
                 }
             }
-            Button("Avbryt", role: .cancel) {}
         } message: {
             Text("Beskriv gjerne hva som mangler eller er ødelagt.")
         }
         .alert("Avlest verdi", isPresented: $showValueAlert) {
             TextField("F.eks. 180", text: $valueText)
                 .keyboardType(.decimalPad)
+                .onChange(of: valueText) { _, newValue in
+                    // Kun sifre og ett desimaltegn
+                    var filtered = newValue.replacingOccurrences(of: ",", with: ".")
+                        .filter { $0.isNumber || $0 == "." }
+                    if let first = filtered.firstIndex(of: ".") {
+                        let afterFirst = filtered.index(after: first)
+                        filtered = String(filtered[..<afterFirst])
+                            + filtered[afterFirst...].filter { $0.isNumber }
+                    }
+                    if filtered != newValue { valueText = filtered }
+                }
+            Button("Avbryt", role: .cancel) {}
             Button("Lagre") {
-                let value = valueText.trimmingCharacters(in: .whitespaces)
-                guard !value.isEmpty else { return }
+                var value = valueText.trimmingCharacters(in: .whitespaces)
+                if value.hasSuffix(".") { value = String(value.dropLast()) }
+                if value.hasPrefix(".") { value = "0" + value }
+                // Lagres kun hvis det er et gyldig tall
+                guard Double(value) != nil else { return }
                 Task { await onAnswer(.ja, nil, value) }
             }
-            Button("Avbryt", role: .cancel) {}
         } message: {
             Text("Skriv inn verdien som står på måleren (\(item.unit ?? "")).")
         }
@@ -317,7 +331,7 @@ struct ChecklistItemRow: View {
             Text(choice.label)
                 .font(.subheadline)
                 .fontWeight(isSelected ? .semibold : .regular)
-                .frame(maxWidth: .infinity, minHeight: 44) // WCAG 2.5.5 minste trykkflate
+                .frame(maxWidth: .infinity, minHeight: 44)
         }
         .buttonStyle(.bordered)
         .tint(isSelected ? choice.color : .secondary)

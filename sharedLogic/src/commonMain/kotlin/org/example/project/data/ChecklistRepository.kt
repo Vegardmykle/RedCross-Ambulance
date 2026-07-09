@@ -128,6 +128,9 @@ class ChecklistRepository(private val db: AppDatabase) {
         comment: String? = null,
         reading: String? = null,
     ) = withContext(Dispatchers.Default) {
+        require(reading == null || reading.toDoubleOrNull() != null) {
+            "Avlest verdi må være et tall"
+        }
         db.checklistResponseQueries.upsertResponse(
             randomId(), runId, itemId, result.db, comment, reading, currentTimeMillis(),
         )

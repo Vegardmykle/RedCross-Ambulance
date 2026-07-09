@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 import org.example.project.db.AppDatabase
 import org.example.project.model.ItemResult
 import org.example.project.model.TemplateType
+import kotlin.coroutines.cancellation.CancellationException
 import org.example.project.util.currentTimeMillis
 import org.example.project.util.randomId
 import org.example.project.util.startOfTodayMillis
@@ -146,6 +147,7 @@ class ChecklistRepository(private val db: AppDatabase) {
      * Lagrer svar. Lukkede kjøringer kan ikke endres.
      * Avleste verdier utenfor punktets grenseverdier flagges automatisk som MANGELFULL.
      */
+    @Throws(IllegalStateException::class, IllegalArgumentException::class, CancellationException::class)
     suspend fun setResponse(
         runId: String,
         itemId: String,
@@ -190,6 +192,7 @@ class ChecklistRepository(private val db: AppDatabase) {
         if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
 
     /** Krever mannskaps-ID (User.id) for å lukke lista. Kan bare lukkes én gang. */
+    @Throws(IllegalStateException::class, IllegalArgumentException::class, CancellationException::class)
     suspend fun completeRun(runId: String, userId: String, comment: String? = null) =
         withContext(Dispatchers.Default) {
             require(userId.isNotBlank()) { "Mannskaps-ID er påkrevd" }
@@ -220,6 +223,7 @@ class ChecklistRepository(private val db: AppDatabase) {
      * og den må være innenfor punktets grenseverdier.
      * Gammel verdi (reading), ny verdi (resolvedReading) og tidspunkt (resolvedAt) bevares.
      */
+    @Throws(IllegalStateException::class, IllegalArgumentException::class, CancellationException::class)
     suspend fun resolveDeficiency(responseId: String, newReading: String? = null) =
         withContext(Dispatchers.Default) {
             val response = db.checklistResponseQueries.getResponseById(responseId).executeAsOneOrNull()
@@ -252,6 +256,7 @@ class ChecklistRepository(private val db: AppDatabase) {
             .asFlow().mapToList(Dispatchers.Default)
 
     /** id = mannskaps-ID (ikke generert). */
+    @Throws(IllegalArgumentException::class, CancellationException::class)
     suspend fun addUser(id: String, name: String, role: String) =
         withContext(Dispatchers.Default) {
             require(id.isNotBlank()) { "Mannskaps-ID er påkrevd" }

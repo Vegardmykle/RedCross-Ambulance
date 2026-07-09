@@ -217,6 +217,13 @@ class ChecklistRepository(private val db: AppDatabase) {
             check(run != null && run.status == "IN_PROGRESS") {
                 "Sjekklisten er allerede lukket"
             }
+            val expected = db.checklistItemQueries
+                .countItemsForTemplateTree(run.templateId).executeAsOne()
+            val answered = db.checklistResponseQueries
+                .countResponsesForRun(runId).executeAsOne()
+            check(answered >= expected) {
+                "Alle punkter må besvares før signering ($answered av $expected)"
+            }
             db.checklistRunQueries.completeRun(runId, currentTimeMillis(), userId, comment)
         }
 

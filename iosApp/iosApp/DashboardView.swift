@@ -96,8 +96,8 @@ struct DashboardView: View {
                 Text("\(daily.name) for \(ambulance.callSign) er klar for gjennomgang.")
                     .font(.body)
 
-                Button {
-                    // Navigasjon til sjekkliste – neste inkrement
+                NavigationLink {
+                    ChecklistRunScreen(templateType: "DAILY")
                 } label: {
                     Label("Start sjekkliste", systemImage: "play.fill")
                         .fontWeight(.semibold)
@@ -125,15 +125,14 @@ struct DashboardView: View {
 
             HStack(spacing: 12) {
                 ForEach(templates.filter { $0.type == "WEEKLY" || $0.type == "MONTHLY" }, id: \.id) { template in
-                    Button {
-                        // Navigasjon til sjekkliste – neste inkrement
+                    NavigationLink {
+                        ChecklistRunScreen(templateType: template.type)
                     } label: {
                         Label(
                             template.name,
                             systemImage: template.type == "WEEKLY" ? "calendar" : "calendar.badge.clock"
                         )
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                     }
                     .buttonStyle(.bordered)
                 }

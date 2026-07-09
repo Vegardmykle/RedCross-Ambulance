@@ -50,3 +50,10 @@ maxSortOrderForTemplate:
 SELECT MAX(sortOrder) AS maxSort
 FROM ChecklistItem
 WHERE templateId = ?1;
+
+-- Antall punkter i en mal inkludert alle sekkene dens
+countItemsForTemplateTree:
+SELECT COUNT(*)
+FROM ChecklistItem
+WHERE templateId = ?1
+   OR templateId IN (SELECT id FROM ChecklistTemplate WHERE parentId = ?1);

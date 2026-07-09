@@ -36,7 +36,17 @@ enum AnswerChoice: String, CaseIterable {
     }
 }
 
+/// Tab-rot: daglig sjekkliste i egen NavigationStack.
 struct ChecklistRunView: View {
+    var body: some View {
+        NavigationStack {
+            ChecklistRunScreen(templateType: "DAILY")
+        }
+    }
+}
+
+/// Selve sjekkliste-skjermen. Kan pushes fra dashboardet med annen listetype.
+struct ChecklistRunScreen: View {
     var templateType = "DAILY"
 
     private let repo = AppDependencies.shared.repository
@@ -66,7 +76,6 @@ struct ChecklistRunView: View {
     }
 
     var body: some View {
-        NavigationStack {
             List {
                 progressSection
 
@@ -104,7 +113,6 @@ struct ChecklistRunView: View {
                     onSign: { userId in await complete(userId: userId) }
                 )
             }
-        }
         .task {
             for await list in repo.ambulances() {
                 if selectedAmbulanceId.isEmpty, let first = list.first {

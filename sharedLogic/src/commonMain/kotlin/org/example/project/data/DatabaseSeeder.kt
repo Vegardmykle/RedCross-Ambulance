@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.example.project.db.AppDatabase
 import org.example.project.model.TemplateType
+import org.example.project.util.currentTimeMillis
 import org.example.project.util.randomId
 
 /**
@@ -18,10 +19,10 @@ class DatabaseSeeder(private val db: AppDatabase) {
 
         db.transaction {
             // --- Ambulanse (eksempel) ---
-            db.ambulanceQueries.insertAmbulance(randomId(), "Ambulanse 1", "")
+            db.ambulanceQueries.insertAmbulance(randomId(), "Ambulanse 1", "", currentTimeMillis())
 
             // --- Testbruker (mannskaps-ID for signering) ---
-            db.userQueries.insertUser("12345", "Test Bruker", "Mannskap")
+            db.userQueries.insertUser("12345", "Test Bruker", "Mannskap", currentTimeMillis())
 
             // --- Daglig sjekkliste ---
             val daily = template("Daglig sjekk", TemplateType.DAILY)
@@ -102,16 +103,16 @@ class DatabaseSeeder(private val db: AppDatabase) {
             )
 
             // --- Standardlenker (URL settes i appen) ---
-            db.appLinkQueries.insertLink(randomId(), "Avviksmelding (Forms)", "", 0)
-            db.appLinkQueries.insertLink(randomId(), "Registrering bruk av naloxon", "", 1)
-            db.appLinkQueries.insertLink(randomId(), "Registrering utdeling/bruk av medisiner", "", 2)
+            db.appLinkQueries.insertLink(randomId(), "Avviksmelding (Forms)", "", 0, currentTimeMillis())
+            db.appLinkQueries.insertLink(randomId(), "Registrering bruk av naloxon", "", 1, currentTimeMillis())
+            db.appLinkQueries.insertLink(randomId(), "Registrering utdeling/bruk av medisiner", "", 2, currentTimeMillis())
         }
     }
 
     /** Oppretter mal og returnerer id. Må kalles inne i transaksjonen. */
     private fun template(name: String, type: TemplateType, parentId: String? = null): String {
         val id = randomId()
-        db.checklistTemplateQueries.insertTemplate(id, name, type.db, parentId, 0)
+        db.checklistTemplateQueries.insertTemplate(id, name, type.db, parentId, 0, currentTimeMillis())
         return id
     }
 
@@ -123,6 +124,7 @@ class DatabaseSeeder(private val db: AppDatabase) {
                 if (spec.unit != null) 1L else 0L, spec.unit,
                 spec.min, spec.max,
                 (index + 1).toLong(),
+                currentTimeMillis(),
             )
         }
     }

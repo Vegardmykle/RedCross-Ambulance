@@ -7,6 +7,7 @@ CREATE TABLE ChecklistRun (
     completedAt INTEGER,
     status TEXT NOT NULL CHECK (status IN ('IN_PROGRESS','COMPLETED','EXPIRED')),
     comment TEXT,
+    updatedAt INTEGER NOT NULL DEFAULT 0, -- sync: sist endret lokalt
     synced INTEGER NOT NULL DEFAULT 0,
 
     FOREIGN KEY (templateId)
@@ -20,8 +21,8 @@ CREATE TABLE ChecklistRun (
 );
 
 insertRun:
-INSERT INTO ChecklistRun(id, templateId, ambulanceId, userId, createdAt, completedAt, status, comment, synced)
-VALUES (?1, ?2, ?3, NULL, ?4, NULL, 'IN_PROGRESS', NULL, 0);
+INSERT INTO ChecklistRun(id, templateId, ambulanceId, userId, createdAt, completedAt, status, comment, updatedAt, synced)
+VALUES (?1, ?2, ?3, NULL, ?4, NULL, 'IN_PROGRESS', NULL, ?4, 0);
 
 getOpenRun:
 SELECT *
@@ -37,13 +38,13 @@ WHERE id = ?1;
 
 completeRun:
 UPDATE ChecklistRun
-SET status = 'COMPLETED', completedAt = ?2, userId = ?3, comment = ?4
+SET status = 'COMPLETED', completedAt = ?2, userId = ?3, comment = ?4, updatedAt = ?2, synced = 0
 WHERE id = ?1;
 
 -- Usignert kjøring fra en tidligere dag: bevares, men merkes utløpt
 expireRun:
 UPDATE ChecklistRun
-SET status = 'EXPIRED'
+SET status = 'EXPIRED', updatedAt = ?2, synced = 0
 WHERE id = ?1;
 
 getRecentRuns:

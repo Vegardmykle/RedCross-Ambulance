@@ -17,3 +17,18 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
+
+# Signering (Android release-nøkler skal aldri i repo)
+*.jks
+*.keystore
+
+# Firebase-konfig (repoet er offentlig)
+google-services.json
+GoogleService-Info.plist
+
+# Hemmeligheter og lokale miljøfiler
+.env
+*.pem
+
+# Profilering/krasjdumper
+*.hprof

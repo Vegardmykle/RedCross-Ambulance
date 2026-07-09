@@ -53,24 +53,25 @@ class ChecklistRepository(private val db: AppDatabase) {
         parentId: String? = null,
     ): String = withContext(Dispatchers.Default) {
         val id = randomId()
-        db.checklistTemplateQueries.insertTemplate(id, name, type.db, parentId, 0)
+        db.checklistTemplateQueries.insertTemplate(id, name, type.db, parentId, 0, currentTimeMillis())
         id
     }
 
     suspend fun renameTemplate(id: String, name: String) =
         withContext(Dispatchers.Default) {
-            db.checklistTemplateQueries.updateTemplateName(id, name)
+            db.checklistTemplateQueries.updateTemplateName(id, name, currentTimeMillis())
         }
 
-    /** Sletter mal, dens punkter og eventuelle sekker med innhold. */
+    /** Sletter (soft) mal, dens punkter og eventuelle sekker med innhold. */
     suspend fun deleteTemplate(id: String) = withContext(Dispatchers.Default) {
+        val now = currentTimeMillis()
         db.transaction {
             db.checklistTemplateQueries.getBagsForTemplate(id).executeAsList().forEach { bag ->
-                db.checklistItemQueries.deleteItemsForTemplate(bag.id)
-                db.checklistTemplateQueries.deleteTemplate(bag.id)
+                db.checklistItemQueries.deleteItemsForTemplate(bag.id, now)
+                db.checklistTemplateQueries.deleteTemplate(bag.id, now)
             }
-            db.checklistItemQueries.deleteItemsForTemplate(id)
-            db.checklistTemplateQueries.deleteTemplate(id)
+            db.checklistItemQueries.deleteItemsForTemplate(id, now)
+            db.checklistTemplateQueries.deleteTemplate(id, now)
         }
     }
 
@@ -89,6 +90,7 @@ class ChecklistRepository(private val db: AppDatabase) {
         db.checklistItemQueries.insertItem(
             id, templateId, title, description,
             if (requiresValue) 1L else 0L, unit, minValue, maxValue, next,
+            currentTimeMillis(),
         )
         id
     }
@@ -106,18 +108,20 @@ class ChecklistRepository(private val db: AppDatabase) {
         db.checklistItemQueries.updateItem(
             id, title, description,
             if (requiresValue) 1L else 0L, unit, minValue, maxValue,
+            currentTimeMillis(),
         )
     }
 
     suspend fun deleteItem(id: String) = withContext(Dispatchers.Default) {
-        db.checklistItemQueries.deleteItem(id)
+        db.checklistItemQueries.deleteItem(id, currentTimeMillis())
     }
 
     /** Setter ny rekkefølge: itemIds i ønsket rekkefølge får sortOrder 1, 2, 3 … */
     suspend fun reorderItems(itemIds: List<String>) = withContext(Dispatchers.Default) {
+        val now = currentTimeMillis()
         db.transaction {
             itemIds.forEachIndexed { index, id ->
-                db.checklistItemQueries.updateItemSortOrder(id, (index + 1).toLong())
+                db.checklistItemQueries.updateItemSortOrder(id, (index + 1).toLong(), now)
             }
         }
     }
@@ -134,7 +138,7 @@ class ChecklistRepository(private val db: AppDatabase) {
             val open = db.checklistRunQueries.getOpenRun(templateId, ambulanceId).executeAsOneOrNull()
             if (open != null) {
                 if (open.createdAt >= startOfTodayMillis()) return@withContext open
-                db.checklistRunQueries.expireRun(open.id)
+                db.checklistRunQueries.expireRun(open.id, currentTimeMillis())
             }
             val id = randomId()
             db.checklistRunQueries.insertRun(id, templateId, ambulanceId, currentTimeMillis())
@@ -191,7 +195,7 @@ class ChecklistRepository(private val db: AppDatabase) {
             )
             // Angre eventuelle lukkinger denne kjøringen har gjort på punktet
             // (håndterer at man bytter svar frem og tilbake)
-            db.checklistResponseQueries.undoResolutionsByRun(itemId, runId)
+            db.checklistResponseQueries.undoResolutionsByRun(itemId, runId, currentTimeMillis())
             // Lukk tidligere åpne avvik: OK nå = RECHECK, nytt avvik = SUPERSEDED
             if (finalResult == ItemResult.JA) {
                 db.checklistResponseQueries.resolveEarlierDeficiencies(
@@ -328,11 +332,11 @@ class ChecklistRepository(private val db: AppDatabase) {
     suspend fun addUser(id: String, name: String, role: String) =
         withContext(Dispatchers.Default) {
             require(id.isNotBlank()) { "Mannskaps-ID er påkrevd" }
-            db.userQueries.insertUser(id, name, role)
+            db.userQueries.insertUser(id, name, role, currentTimeMillis())
         }
 
     suspend fun deleteUser(id: String) = withContext(Dispatchers.Default) {
-        db.userQueries.deleteUser(id)
+        db.userQueries.deleteUser(id, currentTimeMillis())
     }
 
     // ---------- Ambulanser ----------
@@ -344,12 +348,12 @@ class ChecklistRepository(private val db: AppDatabase) {
     suspend fun addAmbulance(callSign: String, registrationNumber: String): String =
         withContext(Dispatchers.Default) {
             val id = randomId()
-            db.ambulanceQueries.insertAmbulance(id, callSign, registrationNumber)
+            db.ambulanceQueries.insertAmbulance(id, callSign, registrationNumber, currentTimeMillis())
             id
         }
 
     suspend fun deleteAmbulance(id: String) = withContext(Dispatchers.Default) {
-        db.ambulanceQueries.deleteAmbulance(id)
+        db.ambulanceQueries.deleteAmbulance(id, currentTimeMillis())
     }
 
     // ---------- Lenker ----------
@@ -361,17 +365,17 @@ class ChecklistRepository(private val db: AppDatabase) {
     suspend fun addLink(title: String, url: String, sortOrder: Long = 0): String =
         withContext(Dispatchers.Default) {
             val id = randomId()
-            db.appLinkQueries.insertLink(id, title, url, sortOrder)
+            db.appLinkQueries.insertLink(id, title, url, sortOrder, currentTimeMillis())
             id
         }
 
     suspend fun updateLink(id: String, title: String, url: String) =
         withContext(Dispatchers.Default) {
-            db.appLinkQueries.updateLink(id, title, url)
+            db.appLinkQueries.updateLink(id, title, url, currentTimeMillis())
         }
 
     suspend fun deleteLink(id: String) = withContext(Dispatchers.Default) {
-        db.appLinkQueries.deleteLink(id)
+        db.appLinkQueries.deleteLink(id, currentTimeMillis())
     }
 
     // ---------- Dokumenter ----------
@@ -383,16 +387,16 @@ class ChecklistRepository(private val db: AppDatabase) {
     suspend fun addDocument(title: String, uri: String, sortOrder: Long = 0): String =
         withContext(Dispatchers.Default) {
             val id = randomId()
-            db.documentQueries.insertDocument(id, title, uri, sortOrder)
+            db.documentQueries.insertDocument(id, title, uri, sortOrder, currentTimeMillis())
             id
         }
 
     suspend fun updateDocument(id: String, title: String, uri: String) =
         withContext(Dispatchers.Default) {
-            db.documentQueries.updateDocument(id, title, uri)
+            db.documentQueries.updateDocument(id, title, uri, currentTimeMillis())
         }
 
     suspend fun deleteDocument(id: String) = withContext(Dispatchers.Default) {
-        db.documentQueries.deleteDocument(id)
+        db.documentQueries.deleteDocument(id, currentTimeMillis())
     }
 }

@@ -22,6 +22,7 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
     private val firestore get() = Firebase.firestore
 
     /** Push + pull med statusoppdatering. Kalles ved appstart og etter signering. */
+    @Throws(Exception::class, kotlin.coroutines.cancellation.CancellationException::class)
     suspend fun syncAll() {
         _status.value = SyncStatus.Syncing
         try {
@@ -40,6 +41,7 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
         }
     }
 
+    @Throws(Exception::class, kotlin.coroutines.cancellation.CancellationException::class)
     override suspend fun pushLocalChanges() = withContext(Dispatchers.Default) {
         db.checklistTemplateQueries.getUnsyncedTemplates().executeAsList().forEach { r ->
             firestore.collection("templates").document(r.id).set(
@@ -89,6 +91,7 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
         }
     }
 
+    @Throws(Exception::class, kotlin.coroutines.cancellation.CancellationException::class)
     override suspend fun pullRemoteChanges() = withContext(Dispatchers.Default) {
         firestore.collection("templates").get().documents.forEach { doc ->
             val dto = doc.data(TemplateDto.serializer())

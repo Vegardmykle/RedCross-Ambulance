@@ -56,6 +56,16 @@ SELECT MAX(sortOrder) AS maxSort
 FROM ChecklistItem
 WHERE templateId = ?1 AND deleted = 0;
 
+getUnsyncedItems:
+SELECT * FROM ChecklistItem WHERE synced = 0;
+
+markItemSynced:
+UPDATE ChecklistItem SET synced = 1 WHERE id = ?1;
+
+applyRemoteItem:
+INSERT OR REPLACE INTO ChecklistItem(id, templateId, title, description, requiresValue, unit, minValue, maxValue, sortOrder, updatedAt, deleted, synced)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1);
+
 -- Antall punkter i en mal inkludert alle sekkene dens
 countItemsForTemplateTree:
 SELECT COUNT(*)

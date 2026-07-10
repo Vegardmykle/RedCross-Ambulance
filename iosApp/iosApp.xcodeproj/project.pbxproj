@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		03FE53833000EC9600FFF51F /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 03FE53823000EC9600FFF51F /* FirebaseAuth */; };
+		03FE53853000EC9600FFF51F /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 03FE53843000EC9600FFF51F /* FirebaseCore */; };
+		03FE53873000EC9600FFF51F /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 03FE53863000EC9600FFF51F /* FirebaseFirestore */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		87F6B9CBB1FD358FDB0CAAF9 /* RedCross-Ambulance.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "RedCross-Ambulance.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -41,12 +47,22 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				03FE53853000EC9600FFF51F /* FirebaseCore in Frameworks */,
+				03FE53833000EC9600FFF51F /* FirebaseAuth in Frameworks */,
+				03FE53873000EC9600FFF51F /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		03FE53813000EC9600FFF51F /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		B96DC70F3589B2A9BAEB4C3E /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -60,6 +76,7 @@
 			children = (
 				D36A28218587088CDD690FD1 /* Configuration */,
 				7A77FB353E7DF81906B1504B /* iosApp */,
+				03FE53813000EC9600FFF51F /* Frameworks */,
 				B96DC70F3589B2A9BAEB4C3E /* Products */,
 			);
 			sourceTree = "<group>";
@@ -85,6 +102,9 @@
 			);
 			name = iosApp;
 			packageProductDependencies = (
+				03FE53823000EC9600FFF51F /* FirebaseAuth */,
+				03FE53843000EC9600FFF51F /* FirebaseCore */,
+				03FE53863000EC9600FFF51F /* FirebaseFirestore */,
 			);
 			productName = iosApp;
 			productReference = 87F6B9CBB1FD358FDB0CAAF9 /* RedCross-Ambulance.app */;
@@ -114,6 +134,9 @@
 			);
 			mainGroup = D1BAF5906B787AA2F31C42FD;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				03FE53803000E70900FFF51F /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B96DC70F3589B2A9BAEB4C3E /* Products */;
 			projectDirPath = "";
@@ -368,6 +391,35 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		03FE53803000E70900FFF51F /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.16.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		03FE53823000EC9600FFF51F /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 03FE53803000E70900FFF51F /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		03FE53843000EC9600FFF51F /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 03FE53803000E70900FFF51F /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		03FE53863000EC9600FFF51F /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 03FE53803000E70900FFF51F /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 58CA393F49C3AAAF846A86E7 /* Project object */;
 }

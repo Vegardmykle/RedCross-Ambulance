@@ -28,6 +28,8 @@ kotlin {
     sourceSets {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
+            implementation(libs.androidx.activity.compose)
+            implementation(libs.compose.materialIconsExtended)
         }
         commonMain.dependencies {
             api(projects.sharedLogic)

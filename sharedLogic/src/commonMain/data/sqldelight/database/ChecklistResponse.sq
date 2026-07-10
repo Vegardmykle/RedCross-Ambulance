@@ -90,6 +90,16 @@ WHERE ChecklistResponse.result IN ('NEI','MANGELFULL','ODELAGT')
   AND ChecklistResponse.resolved = 0
 ORDER BY ChecklistResponse.checkedAt DESC;
 
+getUnsyncedResponses:
+SELECT * FROM ChecklistResponse WHERE synced = 0;
+
+markResponseSynced:
+UPDATE ChecklistResponse SET synced = 1 WHERE id = ?1;
+
+applyRemoteResponse:
+INSERT OR REPLACE INTO ChecklistResponse(id, checklistRunId, itemId, result, comment, reading, checkedAt, resolved, resolvedAt, resolvedReading, resolvedVia, resolvedByRunId, resolvedByUserId, updatedAt, synced)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 1);
+
 resolveDeficiency:
 UPDATE ChecklistResponse
 SET resolved = 1, resolvedAt = ?2, resolvedReading = ?3, resolvedVia = 'MANUAL', resolvedByUserId = ?4, updatedAt = ?2, synced = 0

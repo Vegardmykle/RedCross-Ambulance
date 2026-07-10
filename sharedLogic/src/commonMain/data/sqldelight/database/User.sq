@@ -26,3 +26,16 @@ deleteUser:
 UPDATE User
 SET deleted = 1, updatedAt = ?2, synced = 0
 WHERE id = ?1;
+
+getUserByIdAny:
+SELECT * FROM User WHERE id = ?1;
+
+getUnsyncedUsers:
+SELECT * FROM User WHERE synced = 0;
+
+markUserSynced:
+UPDATE User SET synced = 1 WHERE id = ?1;
+
+applyRemoteUser:
+INSERT OR REPLACE INTO User(id, name, role, updatedAt, deleted, synced)
+VALUES (?1, ?2, ?3, ?4, ?5, 1);

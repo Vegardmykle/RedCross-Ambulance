@@ -26,3 +26,16 @@ countAmbulances:
 SELECT COUNT(*)
 FROM Ambulance
 WHERE deleted = 0;
+
+getAmbulanceById:
+SELECT * FROM Ambulance WHERE id = ?1;
+
+getUnsyncedAmbulances:
+SELECT * FROM Ambulance WHERE synced = 0;
+
+markAmbulanceSynced:
+UPDATE Ambulance SET synced = 1 WHERE id = ?1;
+
+applyRemoteAmbulance:
+INSERT OR REPLACE INTO Ambulance(id, callSign, registrationNumber, updatedAt, deleted, synced)
+VALUES (?1, ?2, ?3, ?4, ?5, 1);

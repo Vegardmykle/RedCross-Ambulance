@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidMultiplatformLibrary)
+    alias(libs.plugins.kotlinSerialization)
     id("app.cash.sqldelight") version "2.3.2"
     id("co.touchlab.skie") version "0.10.13"
 }
@@ -48,6 +49,8 @@ kotlin {
             dependencies {
                 implementation(libs.kotlinx.coroutines.core)
                 implementation(libs.sqldelight.coroutines)
+                implementation(libs.gitlive.firestore)
+                implementation(libs.gitlive.auth)
             }
         }
         

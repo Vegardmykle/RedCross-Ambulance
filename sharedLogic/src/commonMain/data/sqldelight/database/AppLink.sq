@@ -33,3 +33,16 @@ countLinks:
 SELECT COUNT(*)
 FROM AppLink
 WHERE deleted = 0;
+
+getLinkById:
+SELECT * FROM AppLink WHERE id = ?1;
+
+getUnsyncedLinks:
+SELECT * FROM AppLink WHERE synced = 0;
+
+markLinkSynced:
+UPDATE AppLink SET synced = 1 WHERE id = ?1;
+
+applyRemoteLink:
+INSERT OR REPLACE INTO AppLink(id, title, url, sortOrder, updatedAt, deleted, synced)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1);

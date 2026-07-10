@@ -72,6 +72,7 @@ fun App(
     repository: ChecklistRepository,
     documentStorage: DocumentStorage,
     onRequestPdfImport: (() -> Unit)? = null,
+    onSyncRequest: (() -> Unit)? = null,
 ) {
     RkTheme {
         var tab by remember { mutableIntStateOf(0) }
@@ -107,12 +108,13 @@ fun App(
                                     onOpen = push,
                                     onGoToArchive = { tab = 2 },
                                 )
-                                1 -> ChecklistRunScreen(repository, "DAILY", onOpen = push, onBack = null)
-                                2 -> ArchiveScreen(repository, onOpen = push)
+                                1 -> ChecklistRunScreen(repository, "DAILY", onOpen = push, onBack = null, onSyncRequest = onSyncRequest)
+                                2 -> ArchiveScreen(repository, onOpen = push, onSyncRequest = onSyncRequest)
                                 else -> ResourcesScreen(repository, documentStorage, onRequestPdfImport)
                             }
                             is Screen.Run -> ChecklistRunScreen(
                                 repository, screen.templateType, onOpen = push, onBack = pop,
+                                onSyncRequest = onSyncRequest,
                             )
                             is Screen.RunDetail -> RunDetailScreen(repository, screen.run, onBack = pop)
                             is Screen.EditTemplate -> EditTemplateScreen(repository, screen.template, onBack = pop)

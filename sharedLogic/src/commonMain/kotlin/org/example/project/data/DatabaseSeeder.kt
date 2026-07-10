@@ -14,6 +14,7 @@ import org.example.project.util.randomId
  */
 class DatabaseSeeder(private val db: AppDatabase) {
 
+    @Throws(Exception::class, kotlin.coroutines.cancellation.CancellationException::class)
     suspend fun seedIfEmpty() = withContext(Dispatchers.Default) {
         if (db.checklistTemplateQueries.countTemplates().executeAsOne() > 0L) return@withContext
 

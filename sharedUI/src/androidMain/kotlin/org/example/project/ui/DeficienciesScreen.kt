@@ -127,6 +127,7 @@ internal fun ResolveDialog(
     repo: ChecklistRepository,
     deficiency: OpenDeficiency,
     onDismiss: () -> Unit,
+    onResolved: (() -> Unit)? = null,
 ) {
     val users by repo.users().collectAsState(emptyList())
     var crewId by remember { mutableStateOf("") }
@@ -184,6 +185,7 @@ internal fun ResolveDialog(
                                 crewId.trim(),
                                 if (requiresValue) normalizeNumber(valueText) else null,
                             )
+                            onResolved?.invoke()
                             onDismiss()
                         } catch (e: Exception) {
                             error = "Sjekk at verdien er innenfor grensene$limits."

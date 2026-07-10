@@ -34,7 +34,7 @@ kotlin {
        minSdk = libs.versions.android.minSdk.get().toInt()
     
        compilerOptions {
-           jvmTarget = JvmTarget.JVM_11
+           jvmTarget = JvmTarget.JVM_17
        }
        androidResources {
            enable = true
@@ -58,6 +58,8 @@ kotlin {
             dependencies {
                 implementation(libs.androidDriver)
                 implementation(libs.androidx.core.ktx)
+                // Firebase Android SDK-versjoner styres av BoM-en (kreves av GitLive)
+                implementation(project.dependencies.platform(libs.firebase.bom))
             }
         }
 

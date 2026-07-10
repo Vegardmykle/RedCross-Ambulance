@@ -35,6 +35,7 @@ import org.example.project.model.OpenDeficiency
 fun ArchiveScreen(
     repo: ChecklistRepository,
     onOpen: (Screen) -> Unit,
+    onSyncRequest: (() -> Unit)? = null,
 ) {
     val deficiencies by repo.openDeficiencies().collectAsState(emptyList())
     val runs by repo.recentRuns(50).collectAsState(emptyList())
@@ -104,6 +105,7 @@ fun ArchiveScreen(
             repo = repo,
             deficiency = target,
             onDismiss = { resolveTarget = null },
+            onResolved = onSyncRequest,
         )
     }
 }

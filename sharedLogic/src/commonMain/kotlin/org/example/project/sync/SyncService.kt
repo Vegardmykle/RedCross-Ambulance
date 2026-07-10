@@ -14,9 +14,11 @@ import kotlinx.coroutines.flow.Flow
 interface SyncService {
 
     /** Dytter lokale, usynkede endringer til backend og setter synced = 1. */
+    @Throws(Exception::class, kotlin.coroutines.cancellation.CancellationException::class)
     suspend fun pushLocalChanges()
 
     /** Henter endringer fra backend (maler, brukere, lenker, PDF-metadata). */
+    @Throws(Exception::class, kotlin.coroutines.cancellation.CancellationException::class)
     suspend fun pullRemoteChanges()
 
     /** Status til et lite sync-ikon i UI. */

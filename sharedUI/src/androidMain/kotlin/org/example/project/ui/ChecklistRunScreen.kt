@@ -61,6 +61,7 @@ fun ChecklistRunScreen(
     templateType: String,
     onOpen: (Screen) -> Unit,
     onBack: (() -> Unit)?,
+    onSyncRequest: (() -> Unit)? = null,
 ) {
     val templates by repo.topLevelTemplates().collectAsState(emptyList())
     val template = templates.firstOrNull { it.type == templateType }
@@ -232,6 +233,7 @@ fun ChecklistRunScreen(
                     repo.completeRun(r.id, userId, null)
                     justCompleted = true
                     run = repo.startOrResumeRun(t.id, r.ambulanceId)
+                    onSyncRequest?.invoke() // synk i bakgrunnen; feiler stille uten dekning
                     true
                 } catch (e: Exception) {
                     false

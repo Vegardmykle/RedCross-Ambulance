@@ -44,10 +44,6 @@ import kotlinx.coroutines.launch
 import org.example.project.data.ChecklistRepository
 import org.example.project.storage.DocumentStorage
 
-private val recommendedApps = listOf(
-    "FRR", "Lost Person Behavior", "Legevakthåndboken", "MEDeasy", "Bliksund", "Care to Translate",
-)
-
 @Composable
 fun ResourcesScreen(
     repo: ChecklistRepository,
@@ -152,26 +148,6 @@ fun ResourcesScreen(
                 }
             }
 
-            item {
-                Text("ANBEFALTE APPER", style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            items(recommendedApps) { app ->
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Default.Apps, null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.width(12.dp))
-                    Text(app)
-                }
-            }
-            item {
-                Text("Lastes ned til nettbrettet via Google Play.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
         }
     }
 

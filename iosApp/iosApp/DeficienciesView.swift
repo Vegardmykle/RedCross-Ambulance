@@ -1,12 +1,14 @@
 import SwiftUI
 import SharedLogic
 
+// OpenDeficiency har allerede `id: String` – gir Identifiable for .sheet(item:)
+extension OpenDeficiency: Identifiable {}
+
 struct DeficienciesView: View {
     private let repo = AppDependencies.shared.repository
 
     @State private var deficiencies: [OpenDeficiency] = []
     @State private var resolveTarget: OpenDeficiency?
-    @State private var showResolveSheet = false
 
     var body: some View {
         NavigationStack {
@@ -21,16 +23,13 @@ struct DeficienciesView: View {
                     List(deficiencies, id: \.id) { deficiency in
                         DeficiencyRow(deficiency: deficiency) {
                             resolveTarget = deficiency
-                            showResolveSheet = true
                         }
                     }
                 }
             }
             .navigationTitle("Mangler")
-            .sheet(isPresented: $showResolveSheet) {
-                if let deficiency = resolveTarget {
-                    ResolveSheetView(deficiency: deficiency)
-                }
+            .sheet(item: $resolveTarget) { deficiency in
+                ResolveSheetView(deficiency: deficiency)
             }
         }
         .task {

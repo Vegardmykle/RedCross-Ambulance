@@ -22,7 +22,6 @@ struct ResourcesView: View {
             List {
                 documentsSection
                 linksSection
-                appsSection
             }
             .navigationTitle("Ressurser og skjema")
             .fileImporter(
@@ -151,21 +150,6 @@ struct ResourcesView: View {
                 Label("Legg til lenke", systemImage: "plus")
                     .frame(minHeight: 44)
             }
-        }
-    }
-
-    // MARK: Anbefalte apper
-
-    private var appsSection: some View {
-        Section {
-            ForEach(["FRR", "Lost Person Behavior", "Legevakthåndboken", "MEDeasy", "Bliksund", "Care to Translate"], id: \.self) { app in
-                Label(app, systemImage: "app.badge")
-                    .foregroundStyle(.primary)
-            }
-        } header: {
-            Text("Anbefalte apper")
-        } footer: {
-            Text("Lastes ned til nettbrettet via App Store.")
         }
     }
 

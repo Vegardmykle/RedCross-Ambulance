@@ -118,7 +118,8 @@ fun ResourcesScreen(
             items(links, key = { it.id }) { link ->
                 Card(onClick = {
                     if (link.url.isEmpty()) editingLink = link
-                    else uriHandler.openUri(link.url)
+                    else runCatching { uriHandler.openUri(normalizeUrl(link.url)) }
+                        .onFailure { error = "Kunne ikke åpne lenken. Sjekk at URL-en er riktig." }
                 }) {
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
@@ -158,7 +159,7 @@ fun ResourcesScreen(
             initialUrl = link.url,
             onDismiss = { editingLink = null },
             onSave = { title, url ->
-                scope.launch { repo.updateLink(link.id, title, url) }
+                scope.launch { repo.updateLink(link.id, title, normalizeUrl(url)) }
                 editingLink = null
             },
         )
@@ -171,7 +172,7 @@ fun ResourcesScreen(
             initialUrl = "",
             onDismiss = { showAddLink = false },
             onSave = { title, url ->
-                scope.launch { repo.addLink(title, url, links.size.toLong()) }
+                scope.launch { repo.addLink(title, normalizeUrl(url), links.size.toLong()) }
                 showAddLink = false
             },
         )

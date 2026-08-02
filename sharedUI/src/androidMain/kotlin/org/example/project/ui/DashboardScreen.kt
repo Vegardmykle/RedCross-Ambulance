@@ -169,7 +169,11 @@ fun DashboardScreen(
 
                     links.forEach { link ->
                         OutlinedCard(
-                            onClick = { if (link.url.isNotEmpty()) uriHandler.openUri(link.url) },
+                            onClick = {
+                                if (link.url.isNotEmpty()) {
+                                    runCatching { uriHandler.openUri(normalizeUrl(link.url)) }
+                                }
+                            },
                             enabled = link.url.isNotEmpty(),
                         ) {
                             Row(

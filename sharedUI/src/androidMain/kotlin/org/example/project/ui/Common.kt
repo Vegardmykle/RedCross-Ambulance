@@ -103,3 +103,10 @@ fun normalizeNumber(input: String): String? {
 
 fun fmtDouble(value: Double): String =
     if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
+
+/** Legger på https:// hvis skjema mangler – ellers åpnes ikke lenken. */
+fun normalizeUrl(raw: String): String {
+    val trimmed = raw.trim()
+    if (trimmed.isEmpty() || trimmed.contains("://")) return trimmed
+    return "https://$trimmed"
+}

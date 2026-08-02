@@ -159,7 +159,8 @@ struct DashboardView: View {
 
             ForEach(links, id: \.id) { link in
                 Button {
-                    if let url = URL(string: link.url), !link.url.isEmpty {
+                    let normalized = ResourcesView.normalizeUrl(link.url)
+                    if !normalized.isEmpty, let url = URL(string: normalized), url.scheme != nil {
                         openURL(url)
                     }
                 } label: {

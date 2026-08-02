@@ -61,7 +61,7 @@ fun ChecklistRunScreen(
     templateType: String,
     onOpen: (Screen) -> Unit,
     onBack: (() -> Unit)?,
-    onSyncRequest: (() -> Unit)? = null,
+    onSyncRequest: (suspend () -> Unit)? = null,
 ) {
     val templates by repo.topLevelTemplates().collectAsState(emptyList())
     val template = templates.firstOrNull { it.type == templateType }

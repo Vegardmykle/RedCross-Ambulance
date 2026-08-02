@@ -19,8 +19,11 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.LocalHospital
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import database.ChecklistTemplate
 import database.GetRecentRuns
+import kotlinx.coroutines.launch
 import org.example.project.data.ChecklistRepository
 import org.example.project.storage.DocumentStorage
 import org.example.project.ui.ArchiveScreen
@@ -72,11 +76,13 @@ fun App(
     repository: ChecklistRepository,
     documentStorage: DocumentStorage,
     onRequestPdfImport: (() -> Unit)? = null,
-    onSyncRequest: (() -> Unit)? = null,
+    onSyncRequest: (suspend () -> Unit)? = null,
 ) {
     RkTheme {
         var tab by remember { mutableIntStateOf(0) }
         var stack by remember { mutableStateOf<List<Screen>>(emptyList()) }
+        var isSyncing by remember { mutableStateOf(false) }
+        val scope = androidx.compose.runtime.rememberCoroutineScope()
 
         val pop: () -> Unit = { stack = stack.dropLast(1) }
         val push: (Screen) -> Unit = { stack = stack + it }
@@ -88,7 +94,19 @@ fun App(
 
         Surface(color = MaterialTheme.colorScheme.surface) {
             Column(Modifier.fillMaxSize()) {
-                TopBar(callSign)
+                TopBar(
+                    callSign = callSign,
+                    isSyncing = isSyncing,
+                    onRefresh = onSyncRequest?.let { sync ->
+                        {
+                            scope.launch {
+                                isSyncing = true
+                                sync()
+                                isSyncing = false
+                            }
+                        }
+                    },
+                )
                 HorizontalDivider()
                 Row(Modifier.fillMaxSize()) {
                     Sidebar(
@@ -127,7 +145,11 @@ fun App(
 }
 
 @Composable
-private fun TopBar(callSign: String?) {
+private fun TopBar(
+    callSign: String?,
+    isSyncing: Boolean,
+    onRefresh: (() -> Unit)?,
+) {
     Row(
         Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -147,6 +169,20 @@ private fun TopBar(callSign: String?) {
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        Spacer(Modifier.weight(1f))
+        if (onRefresh != null) {
+            if (isSyncing) {
+                CircularProgressIndicator(Modifier.height(24.dp).width(24.dp), strokeWidth = 2.dp)
+            } else {
+                IconButton(onClick = onRefresh) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = "Hent data fra skyen",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }

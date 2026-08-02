@@ -206,11 +206,19 @@ struct ResourcesView: View {
     private func openLink(_ link: AppLink) {
         if link.url.isEmpty {
             startEditing(link)
-        } else if let url = URL(string: link.url) {
+        } else if let url = URL(string: Self.normalizeUrl(link.url)), url.scheme != nil {
             openURL(url)
         } else {
             errorMessage = "Ugyldig URL – rediger lenken."
         }
+    }
+
+    /// Legger på https:// hvis skjema mangler – ellers åpner ikke systemet lenken.
+    static func normalizeUrl(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return trimmed }
+        if trimmed.contains("://") { return trimmed }
+        return "https://\(trimmed)"
     }
 
     private func startEditing(_ link: AppLink) {
@@ -222,7 +230,7 @@ struct ResourcesView: View {
     private func saveEditedLink() {
         guard let link = editingLink else { return }
         let title = linkTitle.trimmingCharacters(in: .whitespaces)
-        let url = linkUrl.trimmingCharacters(in: .whitespaces)
+        let url = Self.normalizeUrl(linkUrl)
         editingLink = nil
         guard !title.isEmpty else { return }
         Task { _ = try? await repo.updateLink(id: link.id, title: title, url: url) }
@@ -230,7 +238,7 @@ struct ResourcesView: View {
 
     private func saveNewLink() {
         let title = linkTitle.trimmingCharacters(in: .whitespaces)
-        let url = linkUrl.trimmingCharacters(in: .whitespaces)
+        let url = Self.normalizeUrl(linkUrl)
         guard !title.isEmpty else { return }
         Task { _ = try? await repo.addLink(title: title, url: url, sortOrder: Int64(links.count)) }
     }

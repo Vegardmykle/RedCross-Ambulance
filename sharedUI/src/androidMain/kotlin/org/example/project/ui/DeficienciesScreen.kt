@@ -127,7 +127,7 @@ internal fun ResolveDialog(
     repo: ChecklistRepository,
     deficiency: OpenDeficiency,
     onDismiss: () -> Unit,
-    onResolved: (() -> Unit)? = null,
+    onResolved: (suspend () -> Unit)? = null,
 ) {
     val users by repo.users().collectAsState(emptyList())
     var crewId by remember { mutableStateOf("") }

@@ -8,8 +8,16 @@ struct DashboardView: View {
     @State private var templates: [ChecklistTemplate] = []
     @State private var links: [AppLink] = []
     @AppStorage("selectedAmbulanceId") private var selectedAmbulanceId = ""
+    @State private var isSyncing = false
 
     @Environment(\.openURL) private var openURL
+
+    private func syncNow() async {
+        guard !isSyncing else { return }
+        isSyncing = true
+        try? await AppDependencies.shared.syncService.syncAll()
+        isSyncing = false
+    }
 
     private var selectedAmbulance: Ambulance? {
         ambulances.first { $0.id == selectedAmbulanceId } ?? ambulances.first
@@ -32,6 +40,22 @@ struct DashboardView: View {
             }
             .background(Color.rkSurface)
             .navigationTitle("Operativ status")
+            .refreshable { await syncNow() }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task { await syncNow() }
+                    } label: {
+                        if isSyncing {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                    }
+                    .disabled(isSyncing)
+                    .accessibilityLabel("Hent data fra skyen")
+                }
+            }
         }
         .task {
             for await list in repo.ambulances() {

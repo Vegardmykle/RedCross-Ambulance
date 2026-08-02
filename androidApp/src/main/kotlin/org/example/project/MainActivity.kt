@@ -48,9 +48,7 @@ class MainActivity : ComponentActivity() {
                 repository = repository,
                 documentStorage = documentStorage,
                 onRequestPdfImport = { pickPdf.launch(arrayOf("application/pdf")) },
-                onSyncRequest = {
-                    lifecycleScope.launch { syncService.syncAll() }
-                },
+                onSyncRequest = { syncService.syncAll() },
             )
         }
     }

@@ -289,7 +289,7 @@ fun ResourcesScreen(
                     scope.launch {
                         try {
                             repo.addUser(id, name, role)
-                        } catch (e: Exception) {
+                        } catch (_: Exception) {
                             error = "Kunne ikke legge til mannskap."
                         }
                     }

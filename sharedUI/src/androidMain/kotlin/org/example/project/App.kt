@@ -2,7 +2,9 @@ package org.example.project
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,17 +27,21 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -49,8 +55,10 @@ import org.example.project.data.ChecklistRepository
 import org.example.project.storage.DocumentStorage
 import org.example.project.ui.ArchiveScreen
 import org.example.project.ui.ChecklistRunScreen
+import org.example.project.ui.CompactWidthBreakpoint
 import org.example.project.ui.DashboardScreen
 import org.example.project.ui.EditTemplateScreen
+import org.example.project.ui.LocalIsCompact
 import org.example.project.ui.ResourcesScreen
 import org.example.project.ui.RkRed
 import org.example.project.ui.RkTheme
@@ -62,13 +70,18 @@ sealed interface Screen {
     data class EditTemplate(val template: ChecklistTemplate) : Screen
 }
 
-private data class NavItem(val label: String, val icon: ImageVector)
+private data class NavItem(
+    val label: String,        // sidemeny (nettbrett)
+    val shortLabel: String,   // bunnavigasjon (telefon) – samme som iOS
+    val screenTitle: String,  // tittel i toppfeltet (telefon) – samme som iOS
+    val icon: ImageVector,
+)
 
 private val navItems = listOf(
-    NavItem("Dashboard", Icons.Default.GridView),
-    NavItem("Sjekklister", Icons.Default.Checklist),
-    NavItem("Arkiv & Mangler", Icons.Default.Archive),
-    NavItem("Ressurser", Icons.AutoMirrored.Filled.MenuBook),
+    NavItem("Dashboard", "Dashboard", "Operativ status", Icons.Default.GridView),
+    NavItem("Sjekklister", "Sjekk", "Sjekkliste", Icons.Default.Checklist),
+    NavItem("Arkiv & Mangler", "Mangler", "Arkiv & Mangler", Icons.Default.Archive),
+    NavItem("Ressurser", "Ressurser", "Ressurser", Icons.AutoMirrored.Filled.MenuBook),
 )
 
 @Composable
@@ -82,7 +95,7 @@ fun App(
         var tab by remember { mutableIntStateOf(0) }
         var stack by remember { mutableStateOf<List<Screen>>(emptyList()) }
         var isSyncing by remember { mutableStateOf(false) }
-        val scope = androidx.compose.runtime.rememberCoroutineScope()
+        val scope = rememberCoroutineScope()
 
         val pop: () -> Unit = { stack = stack.dropLast(1) }
         val push: (Screen) -> Unit = { stack = stack + it }
@@ -92,52 +105,160 @@ fun App(
         val ambulances by repository.ambulances().collectAsState(emptyList())
         val callSign = ambulances.firstOrNull()?.callSign
 
-        Surface(color = MaterialTheme.colorScheme.surface) {
-            Column(Modifier.fillMaxSize()) {
-                TopBar(
-                    callSign = callSign,
-                    isSyncing = isSyncing,
-                    onRefresh = onSyncRequest?.let { sync ->
-                        {
-                            scope.launch {
-                                isSyncing = true
-                                sync()
-                                isSyncing = false
-                            }
-                        }
-                    },
-                )
-                HorizontalDivider()
-                Row(Modifier.fillMaxSize()) {
-                    Sidebar(
-                        callSign = callSign,
-                        selected = tab,
-                        onSelect = {
-                            tab = it
-                            stack = emptyList()
-                        },
+        val refresh: (() -> Unit)? = onSyncRequest?.let { sync ->
+            {
+                scope.launch {
+                    isSyncing = true
+                    sync()
+                    isSyncing = false
+                }
+                Unit
+            }
+        }
+
+        val content: @Composable () -> Unit = {
+            when (val screen = stack.lastOrNull()) {
+                null -> when (tab) {
+                    0 -> DashboardScreen(
+                        repo = repository,
+                        onOpen = push,
+                        onGoToArchive = { tab = 2 },
                     )
-                    VerticalDivider()
-                    Box(Modifier.fillMaxSize()) {
-                        when (val screen = stack.lastOrNull()) {
-                            null -> when (tab) {
-                                0 -> DashboardScreen(
-                                    repo = repository,
-                                    onOpen = push,
-                                    onGoToArchive = { tab = 2 },
-                                )
-                                1 -> ChecklistRunScreen(repository, "DAILY", onOpen = push, onBack = null, onSyncRequest = onSyncRequest)
-                                2 -> ArchiveScreen(repository, onOpen = push, onSyncRequest = onSyncRequest)
-                                else -> ResourcesScreen(repository, documentStorage, onRequestPdfImport)
-                            }
-                            is Screen.Run -> ChecklistRunScreen(
-                                repository, screen.templateType, onOpen = push, onBack = pop,
-                                onSyncRequest = onSyncRequest,
+                    1 -> ChecklistRunScreen(
+                        repository, "DAILY", onOpen = push, onBack = null,
+                        onSyncRequest = onSyncRequest,
+                    )
+                    2 -> ArchiveScreen(repository, onOpen = push, onSyncRequest = onSyncRequest)
+                    else -> ResourcesScreen(repository, documentStorage, onRequestPdfImport)
+                }
+                is Screen.Run -> ChecklistRunScreen(
+                    repository, screen.templateType, onOpen = push, onBack = pop,
+                    onSyncRequest = onSyncRequest,
+                )
+                is Screen.RunDetail -> RunDetailScreen(repository, screen.run, onBack = pop)
+                is Screen.EditTemplate -> EditTemplateScreen(repository, screen.template, onBack = pop)
+            }
+        }
+
+        val selectTab: (Int) -> Unit = {
+            tab = it
+            stack = emptyList()
+        }
+
+        Surface(color = MaterialTheme.colorScheme.surface) {
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val isCompact = maxWidth < CompactWidthBreakpoint
+
+                CompositionLocalProvider(LocalIsCompact provides isCompact) {
+                    if (isCompact) {
+                        PhoneShell(
+                            isSyncing = isSyncing,
+                            onRefresh = refresh,
+                            selected = tab,
+                            onSelect = selectTab,
+                            showChrome = stack.isEmpty(),
+                            content = content,
+                        )
+                    } else {
+                        TabletShell(
+                            callSign = callSign,
+                            isSyncing = isSyncing,
+                            onRefresh = refresh,
+                            selected = tab,
+                            onSelect = selectTab,
+                            content = content,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Nettbrett/desktop: fast sidemeny til venstre. */
+@Composable
+private fun TabletShell(
+    callSign: String?,
+    isSyncing: Boolean,
+    onRefresh: (() -> Unit)?,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Column(Modifier.fillMaxSize()) {
+        TopBar(callSign = callSign, isSyncing = isSyncing, onRefresh = onRefresh, compact = false)
+        HorizontalDivider()
+        Row(Modifier.fillMaxSize()) {
+            Sidebar(callSign = callSign, selected = selected, onSelect = onSelect)
+            VerticalDivider()
+            Box(Modifier.fillMaxSize()) { content() }
+        }
+    }
+}
+
+/**
+ * Telefon: speiler iOS-appen – sentrert skjermtittel øverst med sync-knapp,
+ * faner nederst uten indikator-pille (kun rød farge på valgt fane).
+ * Topp- og bunnlinje skjules på underskjermer, slik at innholdet får hele høyden.
+ */
+@Composable
+private fun PhoneShell(
+    isSyncing: Boolean,
+    onRefresh: (() -> Unit)?,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    showChrome: Boolean,
+    content: @Composable () -> Unit,
+) {
+    Column(Modifier.fillMaxSize()) {
+        if (showChrome) {
+            // iOS-lik navigasjonslinje: sentrert tittel, sync til høyre
+            Box(Modifier.fillMaxWidth().height(52.dp)) {
+                Text(
+                    navItems[selected].screenTitle,
+                    modifier = Modifier.align(Alignment.Center),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Box(Modifier.align(Alignment.CenterEnd).padding(end = 4.dp)) {
+                    if (onRefresh != null) {
+                        if (isSyncing) {
+                            CircularProgressIndicator(
+                                Modifier.height(22.dp).width(22.dp).align(Alignment.Center),
+                                strokeWidth = 2.dp,
                             )
-                            is Screen.RunDetail -> RunDetailScreen(repository, screen.run, onBack = pop)
-                            is Screen.EditTemplate -> EditTemplateScreen(repository, screen.template, onBack = pop)
+                        } else {
+                            IconButton(onClick = onRefresh) {
+                                Icon(
+                                    Icons.Default.Refresh,
+                                    contentDescription = "Hent data fra skyen",
+                                    tint = RkRed,
+                                )
+                            }
                         }
                     }
+                }
+            }
+            HorizontalDivider()
+        }
+        Box(Modifier.weight(1f).fillMaxWidth()) { content() }
+        if (showChrome) {
+            HorizontalDivider()
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                navItems.forEachIndexed { index, item ->
+                    NavigationBarItem(
+                        selected = index == selected,
+                        onClick = { onSelect(index) },
+                        icon = { Icon(item.icon, contentDescription = null) },
+                        label = { Text(item.shortLabel) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = RkRed,
+                            selectedTextColor = RkRed,
+                            indicatorColor = Color.Transparent,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                    )
                 }
             }
         }
@@ -149,21 +270,22 @@ private fun TopBar(
     callSign: String?,
     isSyncing: Boolean,
     onRefresh: (() -> Unit)?,
+    compact: Boolean,
 ) {
     Row(
-        Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 16.dp),
+        Modifier.fillMaxWidth().height(56.dp).padding(horizontal = if (compact) 12.dp else 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            "RØDE KORS AMBULANSE",
+            if (compact) "RØDE KORS" else "RØDE KORS AMBULANSE",
             color = RkRed,
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.titleMedium,
         )
         if (callSign != null) {
-            Spacer(Modifier.width(16.dp))
+            Spacer(Modifier.width(if (compact) 10.dp else 16.dp))
             VerticalDivider(Modifier.height(24.dp))
-            Spacer(Modifier.width(16.dp))
+            Spacer(Modifier.width(if (compact) 10.dp else 16.dp))
             Text(
                 callSign.uppercase(),
                 style = MaterialTheme.typography.titleSmall,

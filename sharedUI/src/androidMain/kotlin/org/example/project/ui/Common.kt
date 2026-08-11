@@ -10,9 +10,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.example.project.model.ItemResult
 import java.text.SimpleDateFormat
@@ -44,6 +46,20 @@ fun RkTheme(content: @Composable () -> Unit) {
         content = content,
     )
 }
+
+/**
+ * Sant når skjermen er smal (telefon i portrett, ca. under 600 dp).
+ * Settes én gang i [org.example.project.App] og leses av skjermene for å
+ * velge mellom én-kolonne (telefon) og fler-kolonne (nettbrett) layout.
+ */
+val LocalIsCompact = staticCompositionLocalOf { false }
+
+/** Grensen mellom telefon- og nettbrettlayout. */
+val CompactWidthBreakpoint = 600.dp
+
+/** Ytterpadding som er romslig på nettbrett og strammere på telefon. */
+@Composable
+fun screenPadding(): Dp = if (LocalIsCompact.current) 16.dp else 24.dp
 
 /** Sentrert innhold med maks bredde – ser bra ut på nettbrett. */
 @Composable

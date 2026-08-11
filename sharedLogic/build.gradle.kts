@@ -72,5 +72,15 @@ kotlin {
                 implementation(kotlin("test"))
             }
         }
+
+        // Enhetstester som kjører på JVM (host) mot en in-memory SQLite-database.
+        // Kjøres med: ./gradlew :sharedLogic:testAndroidHostTest
+        val androidHostTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation(libs.sqldelight.sqliteDriver)
+                implementation(libs.kotlinx.coroutines.test)
+            }
+        }
     }
 }

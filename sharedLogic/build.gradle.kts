@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidMultiplatformLibrary)
+    alias(libs.plugins.kotlinSerialization)
     id("app.cash.sqldelight") version "2.3.2"
     id("co.touchlab.skie") version "0.10.13"
 }
@@ -33,7 +34,7 @@ kotlin {
        minSdk = libs.versions.android.minSdk.get().toInt()
     
        compilerOptions {
-           jvmTarget = JvmTarget.JVM_11
+           jvmTarget = JvmTarget.JVM_17
        }
        androidResources {
            enable = true
@@ -48,6 +49,8 @@ kotlin {
             dependencies {
                 implementation(libs.kotlinx.coroutines.core)
                 implementation(libs.sqldelight.coroutines)
+                implementation(libs.gitlive.firestore)
+                implementation(libs.gitlive.auth)
             }
         }
         
@@ -55,6 +58,8 @@ kotlin {
             dependencies {
                 implementation(libs.androidDriver)
                 implementation(libs.androidx.core.ktx)
+                // Firebase Android SDK-versjoner styres av BoM-en (kreves av GitLive)
+                implementation(project.dependencies.platform(libs.firebase.bom))
             }
         }
 

@@ -1,23 +1,41 @@
 CREATE TABLE User (
-    id TEXT NOT NULL PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY, -- mannskaps-ID
     name TEXT NOT NULL,
-    role TEXT NOT NULL
+    role TEXT NOT NULL,
+    updatedAt INTEGER NOT NULL DEFAULT 0, -- sync: sist endret lokalt
+    deleted INTEGER NOT NULL DEFAULT 0, -- soft delete: synkes som tombstone
+    synced INTEGER NOT NULL DEFAULT 0 -- 0 = har usynkede lokale endringer
 );
 
 getAllUsers:
 SELECT *
 FROM User
+WHERE deleted = 0
 ORDER BY name;
 
 getUserById:
 SELECT *
 FROM User
-WHERE id = ?1;
+WHERE id = ?1 AND deleted = 0;
 
 insertUser:
-INSERT INTO User(id, name, role)
-VALUES (?1, ?2, ?3);
+INSERT INTO User(id, name, role, updatedAt, deleted, synced)
+VALUES (?1, ?2, ?3, ?4, 0, 0);
 
 deleteUser:
-DELETE FROM User
+UPDATE User
+SET deleted = 1, updatedAt = ?2, synced = 0
 WHERE id = ?1;
+
+getUserByIdAny:
+SELECT * FROM User WHERE id = ?1;
+
+getUnsyncedUsers:
+SELECT * FROM User WHERE synced = 0;
+
+markUserSynced:
+UPDATE User SET synced = 1 WHERE id = ?1;
+
+applyRemoteUser:
+INSERT OR REPLACE INTO User(id, name, role, updatedAt, deleted, synced)
+VALUES (?1, ?2, ?3, ?4, ?5, 1);

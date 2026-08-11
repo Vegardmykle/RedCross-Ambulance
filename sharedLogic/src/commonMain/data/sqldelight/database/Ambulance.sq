@@ -1,22 +1,41 @@
 CREATE TABLE Ambulance (
     id TEXT NOT NULL PRIMARY KEY,
     callSign TEXT NOT NULL,
-    registrationNumber TEXT NOT NULL
+    registrationNumber TEXT NOT NULL,
+    updatedAt INTEGER NOT NULL DEFAULT 0, -- sync: sist endret lokalt
+    deleted INTEGER NOT NULL DEFAULT 0, -- soft delete: synkes som tombstone
+    synced INTEGER NOT NULL DEFAULT 0 -- 0 = har usynkede lokale endringer
 );
 
 getAllAmbulances:
 SELECT *
 FROM Ambulance
+WHERE deleted = 0
 ORDER BY callSign;
 
 insertAmbulance:
-INSERT INTO Ambulance(id, callSign, registrationNumber)
-VALUES (?1, ?2, ?3);
+INSERT INTO Ambulance(id, callSign, registrationNumber, updatedAt, deleted, synced)
+VALUES (?1, ?2, ?3, ?4, 0, 0);
 
 deleteAmbulance:
-DELETE FROM Ambulance
+UPDATE Ambulance
+SET deleted = 1, updatedAt = ?2, synced = 0
 WHERE id = ?1;
 
 countAmbulances:
 SELECT COUNT(*)
-FROM Ambulance;
+FROM Ambulance
+WHERE deleted = 0;
+
+getAmbulanceById:
+SELECT * FROM Ambulance WHERE id = ?1;
+
+getUnsyncedAmbulances:
+SELECT * FROM Ambulance WHERE synced = 0;
+
+markAmbulanceSynced:
+UPDATE Ambulance SET synced = 1 WHERE id = ?1;
+
+applyRemoteAmbulance:
+INSERT OR REPLACE INTO Ambulance(id, callSign, registrationNumber, updatedAt, deleted, synced)
+VALUES (?1, ?2, ?3, ?4, ?5, 1);

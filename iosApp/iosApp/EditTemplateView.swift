@@ -74,23 +74,36 @@ struct EditItemsSection: View {
     @State private var showRenameAlert = false
     @State private var renameText = ""
     @State private var showDeleteConfirm = false
+    @State private var deleteItemTarget: ChecklistItem?
 
     var body: some View {
         Section {
             ForEach(items, id: \.id) { item in
-                Button {
-                    editingItem = item
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.title)
-                            .foregroundStyle(.primary)
-                        if let subtitle = subtitle(for: item) {
-                            Text(subtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                HStack(spacing: 0) {
+                    Button {
+                        editingItem = item
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.title)
+                                .foregroundStyle(.primary)
+                            if let subtitle = subtitle(for: item) {
+                                Text(subtitle)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .buttonStyle(.borderless)
+                    Button {
+                        deleteItemTarget = item
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(Color.rkError)
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Slett \(item.title)")
                 }
             }
             .onMove { from, to in
@@ -101,11 +114,8 @@ struct EditItemsSection: View {
                 Task { try? await repo.reorderItems(itemIds: ids) }
             }
             .onDelete { offsets in
-                let ids = offsets.map { items[$0].id }
-                Task {
-                    for id in ids {
-                        _ = try? await repo.deleteItem(id: id)
-                    }
+                if let first = offsets.first {
+                    deleteItemTarget = items[first]
                 }
             }
 
@@ -171,6 +181,24 @@ struct EditItemsSection: View {
                 guard !name.isEmpty else { return }
                 Task { try? await repo.renameTemplate(id: template.id, name: name) }
             }
+        }
+        .confirmationDialog(
+            "Slette «\(deleteItemTarget?.title ?? "")»?",
+            isPresented: Binding(
+                get: { deleteItemTarget != nil },
+                set: { if !$0 { deleteItemTarget = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Slett punkt", role: .destructive) {
+                if let item = deleteItemTarget {
+                    Task { _ = try? await repo.deleteItem(id: item.id) }
+                }
+                deleteItemTarget = nil
+            }
+            Button("Avbryt", role: .cancel) { deleteItemTarget = nil }
+        } message: {
+            Text("Punktet fjernes fra lista for alle enheter.")
         }
         .confirmationDialog(
             "Slette \(template.name)?",

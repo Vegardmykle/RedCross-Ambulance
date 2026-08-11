@@ -12,6 +12,8 @@ CREATE TABLE ChecklistResponse (
     resolvedVia TEXT CHECK (resolvedVia IN ('MANUAL','RECHECK','SUPERSEDED')), -- manuelt / OK ved senere kontroll / erstattet av nytt avvik
     resolvedByRunId TEXT, -- kjøringen som lukket avviket (for angring)
     resolvedByUserId TEXT, -- mannskaps-ID som signerte manuell løsing
+    updatedAt INTEGER NOT NULL DEFAULT 0, -- sync: sist endret lokalt
+    synced INTEGER NOT NULL DEFAULT 0, -- 0 = har usynkede lokale endringer
 
     FOREIGN KEY (resolvedByUserId)
         REFERENCES User(id),
@@ -26,8 +28,8 @@ CREATE TABLE ChecklistResponse (
 );
 
 upsertResponse:
-INSERT OR REPLACE INTO ChecklistResponse(id, checklistRunId, itemId, result, comment, reading, checkedAt, resolved, resolvedAt, resolvedReading, resolvedVia, resolvedByRunId, resolvedByUserId)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, NULL, NULL, NULL, NULL, NULL);
+INSERT OR REPLACE INTO ChecklistResponse(id, checklistRunId, itemId, result, comment, reading, checkedAt, resolved, resolvedAt, resolvedReading, resolvedVia, resolvedByRunId, resolvedByUserId, updatedAt, synced)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, NULL, NULL, NULL, NULL, NULL, ?7, 0);
 
 getResponseById:
 SELECT *
@@ -88,16 +90,26 @@ WHERE ChecklistResponse.result IN ('NEI','MANGELFULL','ODELAGT')
   AND ChecklistResponse.resolved = 0
 ORDER BY ChecklistResponse.checkedAt DESC;
 
+getUnsyncedResponses:
+SELECT * FROM ChecklistResponse WHERE synced = 0;
+
+markResponseSynced:
+UPDATE ChecklistResponse SET synced = 1 WHERE id = ?1;
+
+applyRemoteResponse:
+INSERT OR REPLACE INTO ChecklistResponse(id, checklistRunId, itemId, result, comment, reading, checkedAt, resolved, resolvedAt, resolvedReading, resolvedVia, resolvedByRunId, resolvedByUserId, updatedAt, synced)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 1);
+
 resolveDeficiency:
 UPDATE ChecklistResponse
-SET resolved = 1, resolvedAt = ?2, resolvedReading = ?3, resolvedVia = 'MANUAL', resolvedByUserId = ?4
+SET resolved = 1, resolvedAt = ?2, resolvedReading = ?3, resolvedVia = 'MANUAL', resolvedByUserId = ?4, updatedAt = ?2, synced = 0
 WHERE id = ?1;
 
 -- Lukk tidligere åpne avvik på samme punkt/ambulanse fra en senere kontroll.
 -- ?5 = 'RECHECK' (punktet er OK nå) eller 'SUPERSEDED' (nytt avvik erstatter det gamle)
 resolveEarlierDeficiencies:
 UPDATE ChecklistResponse
-SET resolved = 1, resolvedAt = ?3, resolvedReading = ?4, resolvedVia = ?5, resolvedByRunId = ?2
+SET resolved = 1, resolvedAt = ?3, resolvedReading = ?4, resolvedVia = ?5, resolvedByRunId = ?2, updatedAt = ?3, synced = 0
 WHERE itemId = ?1
   AND resolved = 0
   AND result != 'JA'
@@ -121,7 +133,7 @@ LIMIT 1;
 -- Angring: hvis svaret i gjeldende kjøring endres, nullstill lukkinger denne kjøringen forårsaket
 undoResolutionsByRun:
 UPDATE ChecklistResponse
-SET resolved = 0, resolvedAt = NULL, resolvedReading = NULL, resolvedVia = NULL, resolvedByRunId = NULL
+SET resolved = 0, resolvedAt = NULL, resolvedReading = NULL, resolvedVia = NULL, resolvedByRunId = NULL, updatedAt = ?3, synced = 0
 WHERE itemId = ?1
   AND resolvedByRunId = ?2;
 

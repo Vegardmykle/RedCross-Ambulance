@@ -41,6 +41,9 @@ compose-components-resources = { module = "org.jetbrains.compose.components:comp
 compose-uiToolingPreview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
 nativeDriver = { module = "app.cash.sqldelight:native-driver", version.ref = "androidDriver" }
 sqldelight-coroutines = { module = "app.cash.sqldelight:coroutines-extensions", version.ref = "androidDriver" }
+# In-memory SQLite for enhetstester på JVM – ingen emulator nødvendig
+sqldelight-sqliteDriver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "androidDriver" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
 gitlive-firestore = { module = "dev.gitlive:firebase-firestore", version.ref = "gitlive" }
 gitlive-auth = { module = "dev.gitlive:firebase-auth", version.ref = "gitlive" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }

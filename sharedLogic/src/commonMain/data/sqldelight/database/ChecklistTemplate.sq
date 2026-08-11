@@ -5,6 +5,9 @@ CREATE TABLE ChecklistTemplate (
     parentId TEXT, -- for BAG: hovedlisten sekken hører til
     sortOrder INTEGER NOT NULL DEFAULT 0,
     version INTEGER NOT NULL DEFAULT 1,
+    updatedAt INTEGER NOT NULL DEFAULT 0, -- sync: sist endret lokalt
+    deleted INTEGER NOT NULL DEFAULT 0, -- soft delete: synkes som tombstone
+    synced INTEGER NOT NULL DEFAULT 0, -- 0 = har usynkede lokale endringer
 
     FOREIGN KEY (parentId)
         REFERENCES ChecklistTemplate(id)
@@ -13,7 +16,7 @@ CREATE TABLE ChecklistTemplate (
 getAllTopLevelTemplates:
 SELECT *
 FROM ChecklistTemplate
-WHERE parentId IS NULL
+WHERE parentId IS NULL AND deleted = 0
 ORDER BY
     CASE type WHEN 'DAILY' THEN 0 WHEN 'WEEKLY' THEN 1 WHEN 'MONTHLY' THEN 2 ELSE 3 END,
     sortOrder;
@@ -26,28 +29,40 @@ WHERE id = ?1;
 getTemplatesByType:
 SELECT *
 FROM ChecklistTemplate
-WHERE type = ?1 AND parentId IS NULL
+WHERE type = ?1 AND parentId IS NULL AND deleted = 0
 ORDER BY sortOrder;
 
 getBagsForTemplate:
 SELECT *
 FROM ChecklistTemplate
-WHERE parentId = ?1
+WHERE parentId = ?1 AND deleted = 0
 ORDER BY sortOrder;
 
 insertTemplate:
-INSERT INTO ChecklistTemplate(id, name, type, parentId, sortOrder, version)
-VALUES (?1, ?2, ?3, ?4, ?5, 1);
+INSERT INTO ChecklistTemplate(id, name, type, parentId, sortOrder, version, updatedAt, deleted, synced)
+VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, 0, 0);
 
 updateTemplateName:
 UPDATE ChecklistTemplate
-SET name = ?2, version = version + 1
+SET name = ?2, version = version + 1, updatedAt = ?3, synced = 0
 WHERE id = ?1;
 
 deleteTemplate:
-DELETE FROM ChecklistTemplate
+UPDATE ChecklistTemplate
+SET deleted = 1, updatedAt = ?2, synced = 0
 WHERE id = ?1;
 
 countTemplates:
 SELECT COUNT(*)
-FROM ChecklistTemplate;
+FROM ChecklistTemplate
+WHERE deleted = 0;
+
+getUnsyncedTemplates:
+SELECT * FROM ChecklistTemplate WHERE synced = 0;
+
+markTemplateSynced:
+UPDATE ChecklistTemplate SET synced = 1 WHERE id = ?1;
+
+applyRemoteTemplate:
+INSERT OR REPLACE INTO ChecklistTemplate(id, name, type, parentId, sortOrder, version, updatedAt, deleted, synced)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1);

@@ -238,6 +238,7 @@ struct ChecklistRunScreen: View {
                 Label("Signer og fullfør", systemImage: "signature")
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
+                    .foregroundStyle(allAnswered ? .white : .secondary)
             }
             .buttonStyle(.borderedProminent)
             .disabled(!allAnswered)
@@ -299,6 +300,8 @@ struct ChecklistRunScreen: View {
             try await repo.completeRun(runId: run.id, userId: userId, comment: nil)
             justCompleted = true
             await loadRun(templateId: template.id)
+            // Synk i bakgrunnen – feiler stille uten dekning, tas igjen ved neste sync
+            Task { try? await AppDependencies.shared.syncService.syncAll() }
             return true
         } catch {
             return false
@@ -556,6 +559,7 @@ struct SignSheetView: View {
                             Label("Fullfør kontroll", systemImage: "paperplane.fill")
                                 .fontWeight(.semibold)
                                 .frame(maxWidth: .infinity)
+                                .foregroundStyle(matchedUser != nil ? .white : .secondary)
                         }
                     }
                     .buttonStyle(.borderedProminent)

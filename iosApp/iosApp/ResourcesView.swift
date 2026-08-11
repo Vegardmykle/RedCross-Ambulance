@@ -10,9 +10,22 @@ struct ResourcesView: View {
 
     @State private var documents: [Document] = []
     @State private var links: [AppLink] = []
+    @State private var users: [User] = []
+    @State private var showAddUser = false
+    @State private var newUserId = ""
+    @State private var newUserName = ""
+    @State private var newUserRole = "Mannskap"
+    @State private var deleteUserTarget: User?
+    @State private var ambulances: [Ambulance] = []
+    @State private var showAddVehicle = false
+    @State private var newVehicleCallSign = ""
+    @State private var newVehicleReg = ""
+    @State private var deleteVehicleTarget: Ambulance?
     @State private var showImporter = false
     @State private var editingLink: AppLink?
     @State private var showAddLink = false
+    @State private var deleteDocTarget: Document?
+    @State private var deleteLinkTarget: AppLink?
     @State private var linkTitle = ""
     @State private var linkUrl = ""
     @State private var errorMessage: String?
@@ -22,6 +35,7 @@ struct ResourcesView: View {
             List {
                 documentsSection
                 linksSection
+                crewSection
             }
             .navigationTitle("Ressurser og skjema")
             .fileImporter(
@@ -43,6 +57,38 @@ struct ResourcesView: View {
                 Button("Avbryt", role: .cancel) {}
                 Button("Legg til") { saveNewLink() }
             }
+            .confirmationDialog(
+                "Slette «\(deleteDocTarget?.title ?? "")»?",
+                isPresented: Binding(
+                    get: { deleteDocTarget != nil },
+                    set: { if !$0 { deleteDocTarget = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Slett PDF", role: .destructive) {
+                    if let document = deleteDocTarget { performDeleteDocument(document) }
+                    deleteDocTarget = nil
+                }
+                Button("Avbryt", role: .cancel) { deleteDocTarget = nil }
+            } message: {
+                Text("PDF-en fjernes fra appen på denne enheten.")
+            }
+            .confirmationDialog(
+                "Slette «\(deleteLinkTarget?.title ?? "")»?",
+                isPresented: Binding(
+                    get: { deleteLinkTarget != nil },
+                    set: { if !$0 { deleteLinkTarget = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Slett lenke", role: .destructive) {
+                    if let link = deleteLinkTarget { performDeleteLink(link) }
+                    deleteLinkTarget = nil
+                }
+                Button("Avbryt", role: .cancel) { deleteLinkTarget = nil }
+            } message: {
+                Text("Lenken fjernes for alle enheter.")
+            }
             .alert("Feil", isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
@@ -60,6 +106,175 @@ struct ResourcesView: View {
         .task {
             for await list in repo.links() {
                 links = list
+            }
+        }
+        .task {
+            for await list in repo.users() {
+                users = list
+            }
+        }
+        .task {
+            for await list in repo.ambulances() {
+                ambulances = list
+            }
+        }
+    }
+
+    // MARK: Administrasjon (mannskap + kjøretøy, sammenleggbart)
+
+    private var crewSection: some View {
+        Section {
+            DisclosureGroup {
+                ForEach(users, id: \.id) { user in
+                    HStack {
+                        Image(systemName: "person.fill")
+                            .foregroundStyle(Color.rkPrimary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(user.name)
+                            Text("ID \(user.id) · \(user.role)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button {
+                            deleteUserTarget = user
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Slett \(user.name)")
+                    }
+                    .frame(minHeight: 44)
+                }
+                Button {
+                    newUserId = ""
+                    newUserName = ""
+                    newUserRole = "Mannskap"
+                    showAddUser = true
+                } label: {
+                    Label("Legg til mannskap", systemImage: "person.badge.plus")
+                        .frame(minHeight: 44)
+                }
+            } label: {
+                Label("Mannskap (\(users.count))", systemImage: "person.2")
+            }
+
+            DisclosureGroup {
+                ForEach(ambulances, id: \.id) { ambulance in
+                    HStack {
+                        Image(systemName: "cross.case.fill")
+                            .foregroundStyle(Color.rkPrimary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(ambulance.callSign)
+                            if !ambulance.registrationNumber.isEmpty {
+                                Text(ambulance.registrationNumber)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        Button {
+                            deleteVehicleTarget = ambulance
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Slett \(ambulance.callSign)")
+                    }
+                    .frame(minHeight: 44)
+                }
+                Button {
+                    newVehicleCallSign = ""
+                    newVehicleReg = ""
+                    showAddVehicle = true
+                } label: {
+                    Label("Legg til kjøretøy", systemImage: "plus")
+                        .frame(minHeight: 44)
+                }
+            } label: {
+                Label("Kjøretøy (\(ambulances.count))", systemImage: "cross.case")
+            }
+        } header: {
+            Text("Administrasjon")
+        } footer: {
+            Text("Endringer gjelder alle enheter.")
+        }
+        .alert("Nytt kjøretøy", isPresented: $showAddVehicle) {
+            TextField("Kallesignal, f.eks. Ambulanse 2", text: $newVehicleCallSign)
+            TextField("Registreringsnummer (valgfritt)", text: $newVehicleReg)
+            Button("Avbryt", role: .cancel) {}
+            Button("Legg til") { addVehicle() }
+        }
+        .confirmationDialog(
+            "Slette \(deleteVehicleTarget?.callSign ?? "")?",
+            isPresented: Binding(
+                get: { deleteVehicleTarget != nil },
+                set: { if !$0 { deleteVehicleTarget = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Slett", role: .destructive) {
+                if let vehicle = deleteVehicleTarget {
+                    Task { _ = try? await repo.deleteAmbulance(id: vehicle.id) }
+                }
+                deleteVehicleTarget = nil
+            }
+            Button("Avbryt", role: .cancel) { deleteVehicleTarget = nil }
+        } message: {
+            Text("Historikken for kjøretøyet beholdes.")
+        }
+        .alert("Nytt mannskap", isPresented: $showAddUser) {
+            TextField("Mannskaps-ID, f.eks. 12345", text: $newUserId)
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+            TextField("Fullt navn", text: $newUserName)
+            TextField("Rolle", text: $newUserRole)
+            Button("Avbryt", role: .cancel) {}
+            Button("Legg til") { addUser() }
+        }
+        .confirmationDialog(
+            "Slette \(deleteUserTarget?.name ?? "")?",
+            isPresented: Binding(
+                get: { deleteUserTarget != nil },
+                set: { if !$0 { deleteUserTarget = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Slett", role: .destructive) {
+                if let user = deleteUserTarget {
+                    Task { _ = try? await repo.deleteUser(id: user.id) }
+                }
+                deleteUserTarget = nil
+            }
+            Button("Avbryt", role: .cancel) { deleteUserTarget = nil }
+        } message: {
+            Text("Personen kan ikke lenger signere. Historikk beholder navnet.")
+        }
+    }
+
+    private func addVehicle() {
+        let callSign = newVehicleCallSign.trimmingCharacters(in: .whitespaces)
+        let reg = newVehicleReg.trimmingCharacters(in: .whitespaces)
+        guard !callSign.isEmpty else { return }
+        Task { _ = try? await repo.addAmbulance(callSign: callSign, registrationNumber: reg) }
+    }
+
+    private func addUser() {
+        let id = newUserId.trimmingCharacters(in: .whitespaces)
+        let name = newUserName.trimmingCharacters(in: .whitespaces)
+        let role = newUserRole.trimmingCharacters(in: .whitespaces)
+        guard !id.isEmpty, !name.isEmpty else { return }
+        guard !users.contains(where: { $0.id == id }) else {
+            errorMessage = "Mannskaps-ID \(id) er allerede i bruk."
+            return
+        }
+        Task {
+            do {
+                try await repo.addUser(id: id, name: name, role: role.isEmpty ? "Mannskap" : role)
+            } catch {
+                errorMessage = "Kunne ikke legge til mannskap."
             }
         }
     }
@@ -91,9 +306,13 @@ struct ResourcesView: View {
                     }
                     .frame(minHeight: 44)
                 }
-            }
-            .onDelete { offsets in
-                deleteDocuments(at: offsets)
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                        deleteDocTarget = document
+                    } label: {
+                        Label("Slett", systemImage: "trash")
+                    }
+                }
             }
 
             Button {
@@ -135,8 +354,15 @@ struct ResourcesView: View {
                     .frame(minHeight: 44)
                 }
                 .swipeActions(edge: .trailing) {
-                    Button("Rediger") {
+                    Button(role: .destructive) {
+                        deleteLinkTarget = link
+                    } label: {
+                        Label("Slett", systemImage: "trash")
+                    }
+                    Button {
                         startEditing(link)
+                    } label: {
+                        Label("Rediger", systemImage: "pencil")
                     }
                     .tint(.rkPrimary)
                 }
@@ -170,14 +396,15 @@ struct ResourcesView: View {
         }
     }
 
-    private func deleteDocuments(at offsets: IndexSet) {
-        let targets = offsets.map { documents[$0] }
+    private func performDeleteDocument(_ document: Document) {
         Task {
-            for document in targets {
-                storage.delete(path: document.uri)
-                _ = try? await repo.deleteDocument(id: document.id)
-            }
+            storage.delete(path: document.uri)
+            _ = try? await repo.deleteDocument(id: document.id)
         }
+    }
+
+    private func performDeleteLink(_ link: AppLink) {
+        Task { _ = try? await repo.deleteLink(id: link.id) }
     }
 
     private func importPdf(_ result: Result<URL, Error>) {
@@ -220,7 +447,7 @@ struct ResourcesView: View {
         if trimmed.contains("://") { return trimmed }
         return "https://\(trimmed)"
     }
-
+    
     private func startEditing(_ link: AppLink) {
         linkTitle = link.title
         linkUrl = link.url

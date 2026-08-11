@@ -127,6 +127,7 @@ struct DashboardView: View {
                         .fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
+                        .foregroundStyle(.white)
                 }
                 .buttonStyle(.borderedProminent)
             } else {

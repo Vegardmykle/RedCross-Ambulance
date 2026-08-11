@@ -18,6 +18,10 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.LocalHospital
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
@@ -52,12 +56,18 @@ fun ResourcesScreen(
 ) {
     val documents by repo.documents().collectAsState(emptyList())
     val links by repo.links().collectAsState(emptyList())
+    val users by repo.users().collectAsState(emptyList())
+    val ambulances by repo.ambulances().collectAsState(emptyList())
     val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
 
     var editingLink by remember { mutableStateOf<AppLink?>(null) }
     var showAddLink by remember { mutableStateOf(false) }
     var deleteDocTarget by remember { mutableStateOf<Document?>(null) }
+    var showAddUser by remember { mutableStateOf(false) }
+    var deleteUserTarget by remember { mutableStateOf<database.User?>(null) }
+    var showAddVehicle by remember { mutableStateOf(false) }
+    var deleteVehicleTarget by remember { mutableStateOf<database.Ambulance?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
     TabletContainer {
@@ -149,6 +159,79 @@ fun ResourcesScreen(
                 }
             }
 
+            item {
+                Text("ADMINISTRASJON", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            item {
+                AdminExpandableCard(
+                    title = "Mannskap (${users.size})",
+                    icon = { Icon(Icons.Default.Person, null, tint = RkRed) },
+                ) {
+                    users.forEach { user ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(user.name)
+                                Text("ID ${user.id} · ${user.role}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            IconButton(onClick = { deleteUserTarget = user }) {
+                                Icon(Icons.Default.Delete, "Slett ${user.name}")
+                            }
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = { showAddUser = true },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                    ) {
+                        Icon(Icons.Default.Add, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Legg til mannskap")
+                    }
+                }
+            }
+            item {
+                AdminExpandableCard(
+                    title = "Kjøretøy (${ambulances.size})",
+                    icon = { Icon(Icons.Default.LocalHospital, null, tint = RkRed) },
+                ) {
+                    ambulances.forEach { ambulance ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(ambulance.callSign)
+                                if (ambulance.registrationNumber.isNotEmpty()) {
+                                    Text(ambulance.registrationNumber,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            IconButton(onClick = { deleteVehicleTarget = ambulance }) {
+                                Icon(Icons.Default.Delete, "Slett ${ambulance.callSign}")
+                            }
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = { showAddVehicle = true },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                    ) {
+                        Icon(Icons.Default.Add, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Legg til kjøretøy")
+                    }
+                }
+            }
+            item {
+                Text("Endringer gjelder alle enheter.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 
@@ -196,6 +279,66 @@ fun ResourcesScreen(
         )
     }
 
+    if (showAddUser) {
+        AddUserDialog(
+            onDismiss = { showAddUser = false },
+            onSave = { id, name, role ->
+                if (users.any { it.id == id }) {
+                    error = "Mannskaps-ID $id er allerede i bruk."
+                } else {
+                    scope.launch {
+                        try {
+                            repo.addUser(id, name, role)
+                        } catch (e: Exception) {
+                            error = "Kunne ikke legge til mannskap."
+                        }
+                    }
+                }
+                showAddUser = false
+            },
+        )
+    }
+
+    deleteUserTarget?.let { user ->
+        AlertDialog(
+            onDismissRequest = { deleteUserTarget = null },
+            title = { Text("Slette ${user.name}?") },
+            text = { Text("Personen kan ikke lenger signere. Historikk beholder navnet.") },
+            dismissButton = { TextButton(onClick = { deleteUserTarget = null }) { Text("Avbryt") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch { repo.deleteUser(user.id) }
+                    deleteUserTarget = null
+                }) { Text("Slett") }
+            },
+        )
+    }
+
+    if (showAddVehicle) {
+        AddVehicleDialog(
+            onDismiss = { showAddVehicle = false },
+            onSave = { callSign, reg ->
+                scope.launch { repo.addAmbulance(callSign, reg) }
+                showAddVehicle = false
+            },
+        )
+    }
+
+    deleteVehicleTarget?.let { ambulance ->
+        AlertDialog(
+            onDismissRequest = { deleteVehicleTarget = null },
+            title = { Text("Slette ${ambulance.callSign}?") },
+            text = { Text("Historikken for kjøretøyet beholdes.") },
+            dismissButton = { TextButton(onClick = { deleteVehicleTarget = null }) { Text("Avbryt") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch { repo.deleteAmbulance(ambulance.id) }
+                    deleteVehicleTarget = null
+                }) { Text("Slett") }
+            },
+        )
+    }
+
     error?.let {
         AlertDialog(
             onDismissRequest = { error = null },
@@ -204,6 +347,103 @@ fun ResourcesScreen(
             confirmButton = { TextButton(onClick = { error = null }) { Text("OK") } },
         )
     }
+}
+
+@Composable
+private fun AdminExpandableCard(
+    title: String,
+    icon: @Composable () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Card {
+        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                icon()
+                Spacer(Modifier.width(12.dp))
+                Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(
+                        if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        if (expanded) "Lukk" else "Åpne",
+                    )
+                }
+            }
+            if (expanded) {
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddVehicleDialog(
+    onDismiss: () -> Unit,
+    onSave: (callSign: String, registrationNumber: String) -> Unit,
+) {
+    var callSign by remember { mutableStateOf("") }
+    var reg by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Nytt kjøretøy") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = callSign, onValueChange = { callSign = it },
+                    label = { Text("Kallesignal") }, placeholder = { Text("F.eks. Ambulanse 2") })
+                OutlinedTextField(value = reg, onValueChange = { reg = it },
+                    label = { Text("Registreringsnummer (valgfritt)") })
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Avbryt") } },
+        confirmButton = {
+            TextButton(
+                enabled = callSign.isNotBlank(),
+                onClick = { onSave(callSign.trim(), reg.trim()) },
+            ) { Text("Legg til") }
+        },
+    )
+}
+
+@Composable
+private fun AddUserDialog(
+    onDismiss: () -> Unit,
+    onSave: (id: String, name: String, role: String) -> Unit,
+) {
+    var id by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
+    var role by remember { mutableStateOf("Mannskap") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Nytt mannskap") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = id, onValueChange = { id = it },
+                    label = { Text("Mannskaps-ID") }, placeholder = { Text("F.eks. 12345") })
+                OutlinedTextField(value = name, onValueChange = { name = it },
+                    label = { Text("Fullt navn") })
+                OutlinedTextField(value = role, onValueChange = { role = it },
+                    label = { Text("Rolle") })
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Avbryt") } },
+        confirmButton = {
+            TextButton(
+                enabled = id.isNotBlank() && name.isNotBlank(),
+                onClick = {
+                    onSave(
+                        id.trim(),
+                        name.trim(),
+                        role.trim().ifEmpty { "Mannskap" },
+                    )
+                },
+            ) { Text("Legg til") }
+        },
+    )
 }
 
 @Composable

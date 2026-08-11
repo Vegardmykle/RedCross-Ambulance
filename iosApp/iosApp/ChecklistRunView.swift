@@ -238,6 +238,7 @@ struct ChecklistRunScreen: View {
                 Label("Signer og fullfør", systemImage: "signature")
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
+                    .foregroundStyle(allAnswered ? .white : .secondary)
             }
             .buttonStyle(.borderedProminent)
             .disabled(!allAnswered)
@@ -558,6 +559,7 @@ struct SignSheetView: View {
                             Label("Fullfør kontroll", systemImage: "paperplane.fill")
                                 .fontWeight(.semibold)
                                 .frame(maxWidth: .infinity)
+                                .foregroundStyle(matchedUser != nil ? .white : .secondary)
                         }
                     }
                     .buttonStyle(.borderedProminent)

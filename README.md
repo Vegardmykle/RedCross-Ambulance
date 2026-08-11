@@ -1,35 +1,112 @@
-This is a Kotlin Multiplatform project targeting Android, iOS.
+# RedCross-Ambulance
 
-* [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+Sjekkliste- og avviksapp for ambulansegruppa i Oslo Røde Kors. Mannskapet
+gjennomfører daglige, ukentlige og månedlige utstyrskontroller på iPhone/iPad
+eller Android, signerer med mannskaps-ID, og avvik følges opp til de er rettet.
+Appen fungerer fullt ut uten nettdekning – synkronisering mellom enheter skjer
+i bakgrunnen når det er nett.
 
-* [/sharedLogic](./sharedLogic/src) is for the code that will be shared between app targets in the project.
-  The most important subfolder is [commonMain](./sharedLogic/src/commonMain/kotlin). If preferred, you
-  can add code to the platform-specific folders here too.
+## Hva appen gjør
 
-* [/sharedUI](./sharedUI/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./sharedUI/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./sharedUI/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./sharedUI/src/jvmMain/kotlin)
-    folder is the appropriate location.
+- **Sjekklister** med ja / nei / mangelfull / ødelagt per punkt, organisert i
+  hovedliste og sekker/tasker (akuttkoffert, oksygensekk, branntaske osv.)
+- **Målepunkter** med grenseverdier (f.eks. oksygentrykk 180–250 bar) – verdier
+  utenfor grensa flagges automatisk som avvik, uansett hva mannskapet svarte
+- **Signering** med mannskaps-ID kreves for å lukke en liste, og alle punkter
+  må være besvart først
+- **Avviksoppfølging**: åpne mangler vises på tvers av vakter til de løses –
+  enten manuelt med signatur og ny måleverdi, eller automatisk når punktet
+  meldes i orden ved neste kontroll. Videreførte avvik spores tilbake til
+  første melding
+- **Redigerbare lister**: mannskapet kan endre punkter, grenseverdier, sekker
+  og rekkefølge rett i appen; endringene deles til alle enheter
+- **Ressurser**: lokale PDF-er (interne instrukser, beredskapsplan med
+  tiltakskort for ekom-bortfall) og hurtiglenker til avviksskjema,
+  naloksonregistrering og medikamentregistrering
+- **Arkiv** over gjennomførte kontroller med hvem som signerte og hvilke
+  avvik som ble meldt og løst
 
-### Running the apps
+## Arkitektur i korte trekk
 
-Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and options:
+Kotlin Multiplatform med **native UI på begge plattformer** – SwiftUI på
+iOS/iPadOS (hovedplattform), Jetpack Compose på Android. Kun logikk og data
+deles. Se [`diagrams/architecture.md`](diagrams/architecture.md).
 
-- Android app: `./gradlew :androidApp:assembleDebug`
-- iOS app: open the [/iosApp](./iosApp) directory in Xcode and run it from there.
+```
+RedCross-Ambulance/
+├── sharedLogic/     Delt kjerne (Kotlin Multiplatform)
+│   ├── ChecklistRepository – all forretningslogikk og validering
+│   ├── SQLDelight-skjema → SQLite (lokal-først, alltid kilden til sannhet)
+│   ├── FirebaseSyncService – bakgrunnssynk mot Firestore, «nyeste vinner»
+│   └── DatabaseSeeder – ekte sjekklistedata med faste ID-er
+├── iosApp/          SwiftUI-app (iPhone og iPad)
+├── sharedUI/        Compose-skjermer (kun Android)
+│   └── App.kt velger layout: bunnfaner < 600 dp, sidemeny ≥ 600 dp
+├── androidApp/      Android-skall (én APK for telefon og nettbrett)
+└── diagrams/        Arkitektur, datamodell, avvikslivssyklus, synk, testdekning
+```
 
-### Running tests
+Prinsipper som styrer koden:
 
-Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
+- **Lokal-først**: UI leser og skriver kun mot SQLite. Firestore er et
+  synkroniseringslag, aldri en forutsetning. Ingen dekning = ingen forskjell.
+- **Utbyttbar synk**: `SyncService`-grensesnittet gjør at Firebase kan byttes
+  ut med et internt Røde Kors-API uten endringer i appene.
+- **Myk sletting**: rader merkes `deleted` og synkes som tombstones, slik at
+  sletting når alle enheter.
+- **Kotlin → Swift** via SKIE: Flow blir AsyncSequence, suspend blir
+  async/await. Suspend-funksjoner som kan feile er merket `@Throws` – uten
+  dette krasjer iOS-appen i stedet for å vise feilmelding.
 
-- Android tests: `./gradlew :sharedUI:testAndroidHostTest :sharedLogic:testAndroidHostTest`
-- iOS tests: `./gradlew :sharedLogic:iosSimulatorArm64Test`
+## Komme i gang
 
----
+Krever JDK 17, Android Studio (nyere versjon med AGP 9) og Xcode.
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+**Android**
+
+```
+./gradlew :androidApp:assembleDebug
+```
+
+**iOS**: åpne `iosApp/` i Xcode og kjør. Firebase-avhengighetene
+(FirebaseCore, FirebaseAuth, FirebaseFirestore) hentes via Swift Package
+Manager ved første bygg.
+
+**Firebase**: hver utvikler/utrulling trenger `google-services.json`
+(androidApp/) og `GoogleService-Info.plist` (iosApp/) fra
+Firebase-konsollen. Begge er bevisst utelatt fra git. Firestore må være
+Standard edition med database-ID `(default)`, region eur3, og anonym
+autentisering påslått.
+
+**Første kjøring**: appen synker først, og seeder bare hvis databasen
+fortsatt er tom – slik unngås duplikater når flere enheter settes opp.
+Start derfor én enhet av gangen ved førstegangsoppsett.
+
+## Tester
+
+```
+./gradlew :sharedLogic:testAndroidHostTest
+```
+
+33 tester dekker det som har konsekvenser hvis det svikter: signering og
+fullføring, grenseverdier på målinger og avvikslivssyklusen. Hver test kjører
+mot en egen SQLite-database i minnet – ingen emulator eller nettverk.
+[`diagrams/test-coverage.md`](diagrams/test-coverage.md) viser hva som er
+dekket, hva som ikke er det, og hvilken manuell testing som kompenserer.
+
+## Dokumentasjon
+
+| Dokument | Innhold |
+|---|---|
+| [`diagrams/architecture.md`](diagrams/architecture.md) | Moduler, lagdeling og dataflyt |
+| [`diagrams/database.md`](diagrams/database.md) | ER-diagram for SQLite-skjemaet |
+| [`diagrams/deviation-lifecycle.md`](diagrams/deviation-lifecycle.md) | Tilstandsmaskinen for avvik: åpent → løst/videreført |
+| [`diagrams/sync-flow.md`](diagrams/sync-flow.md) | Sekvensdiagram for push/pull mot Firestore |
+| [`diagrams/test-coverage.md`](diagrams/test-coverage.md) | Testdekning, risiko og anbefalt videre arbeid |
+
+## Kjente begrensninger
+
+- Synk krever manuell utløsning (synk-knapp / pull-to-refresh) eller
+  app-start; ingen kontinuerlig lytting mot Firestore ennå
+- Dagsgrensen i `startOrResumeRun` er ikke automatisk testet (krever
+  klokkeinjeksjon – øverst på lista i test-coverage.md)

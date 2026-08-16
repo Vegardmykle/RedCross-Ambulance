@@ -1,3 +1,4 @@
+import com.google.firebase.appdistribution.gradle.firebaseAppDistribution
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
 
@@ -96,8 +97,11 @@ tasks.register("betaRelease") {
     group = "distribution"
     description = "Bygger signert release-APK og laster den opp til Firebase App Distribution"
 
+    // Lokal kopi, ellers fanger doFirst-lambdaen hele byggeskriptet
+    // og konfigurasjonscachen feiler
+    val signingKeyPresent = releaseStoreFile != null
     doFirst {
-        check(releaseStoreFile != null) {
+        check(signingKeyPresent) {
             "Fant ikke signeringsnøkkelen. Sett RELEASE_STORE_FILE (og passord) i local.properties."
         }
     }

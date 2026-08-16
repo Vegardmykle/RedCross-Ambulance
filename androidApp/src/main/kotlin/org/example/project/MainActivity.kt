@@ -49,6 +49,7 @@ class MainActivity : ComponentActivity() {
                 documentStorage = documentStorage,
                 onRequestPdfImport = { pickPdf.launch(arrayOf("application/pdf")) },
                 onSyncRequest = { syncService.syncAll() },
+                syncStatus = syncService.status,
             )
         }
     }

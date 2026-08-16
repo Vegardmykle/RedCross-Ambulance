@@ -26,13 +26,36 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
     suspend fun syncAll() {
         _status.value = SyncStatus.Syncing
         try {
+            log("start")
             ensureSignedIn()
+            log("innlogget som ${Firebase.auth.currentUser?.uid ?: "ingen"}")
+
+            // Push kan feile per rad uten å kaste – pull skal uansett kjøre,
+            // slik at enheten får inn endringer fra de andre bilene
             pushLocalChanges()
+            log("push ferdig (${lastPushFailures} avvist)")
+
             pullRemoteChanges()
-            _status.value = SyncStatus.Idle
+            log("pull ferdig")
+
+            _status.value = if (lastPushFailures > 0) {
+                SyncStatus.Error(
+                    "$lastPushFailures endring(er) ble ikke lagret i skyen. " +
+                        (lastPushError ?: "")
+                )
+            } else {
+                SyncStatus.Idle
+            }
         } catch (e: Exception) {
+            // Uten denne loggen forsvinner synkfeil sporløst – kallerne bruker try?
+            log("FEIL: ${e::class.simpleName}: ${e.message}")
             _status.value = SyncStatus.Error(e.message ?: "Ukjent synkroniseringsfeil")
         }
+    }
+
+    /** Synlig i Xcode-konsollen (iOS) og logcat (Android): filtrer på «[Sync]». */
+    private fun log(message: String) {
+        println("[Sync] $message")
     }
 
     private suspend fun ensureSignedIn() {
@@ -41,59 +64,112 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
         }
     }
 
-    @Throws(Exception::class, kotlin.coroutines.cancellation.CancellationException::class)
-    override suspend fun pushLocalChanges() = withContext(Dispatchers.Default) {
-        db.checklistTemplateQueries.getUnsyncedTemplates().executeAsList().forEach { r ->
-            firestore.collection("templates").document(r.id).set(
-                TemplateDto(r.id, r.name, r.type, r.parentId, r.sortOrder, r.version, r.updatedAt, r.deleted)
-            )
-            db.checklistTemplateQueries.markTemplateSynced(r.id)
-        }
-        db.checklistItemQueries.getUnsyncedItems().executeAsList().forEach { r ->
-            firestore.collection("items").document(r.id).set(
-                ItemDto(r.id, r.templateId, r.title, r.description, r.requiresValue,
-                    r.unit, r.minValue, r.maxValue, r.sortOrder, r.updatedAt, r.deleted)
-            )
-            db.checklistItemQueries.markItemSynced(r.id)
-        }
-        db.userQueries.getUnsyncedUsers().executeAsList().forEach { r ->
-            firestore.collection("users").document(r.id).set(
-                UserDto(r.id, r.name, r.role, r.updatedAt, r.deleted)
-            )
-            db.userQueries.markUserSynced(r.id)
-        }
-        db.ambulanceQueries.getUnsyncedAmbulances().executeAsList().forEach { r ->
-            firestore.collection("ambulances").document(r.id).set(
-                AmbulanceDto(r.id, r.callSign, r.registrationNumber, r.updatedAt, r.deleted)
-            )
-            db.ambulanceQueries.markAmbulanceSynced(r.id)
-        }
-        db.appLinkQueries.getUnsyncedLinks().executeAsList().forEach { r ->
-            firestore.collection("links").document(r.id).set(
-                LinkDto(r.id, r.title, r.url, r.sortOrder, r.updatedAt, r.deleted)
-            )
-            db.appLinkQueries.markLinkSynced(r.id)
-        }
-        db.checklistRunQueries.getUnsyncedRuns().executeAsList().forEach { r ->
-            firestore.collection("runs").document(r.id).set(
-                RunDto(r.id, r.templateId, r.ambulanceId, r.userId, r.createdAt,
-                    r.completedAt, r.status, r.comment, r.updatedAt)
-            )
-            db.checklistRunQueries.markRunSynced(r.id)
-        }
-        db.checklistResponseQueries.getUnsyncedResponses().executeAsList().forEach { r ->
-            firestore.collection("responses").document(r.id).set(
-                ResponseDto(r.id, r.checklistRunId, r.itemId, r.result, r.comment, r.reading,
-                    r.checkedAt, r.resolved, r.resolvedAt, r.resolvedReading, r.resolvedVia,
-                    r.resolvedByRunId, r.resolvedByUserId, r.updatedAt)
-            )
-            db.checklistResponseQueries.markResponseSynced(r.id)
+    /**
+     * Antall rader som feilet under siste push. Brukes til å rapportere
+     * delvis synkronisering i stedet for å skjule den.
+     */
+    private class PushOutcome {
+        var failed = 0
+        var lastError: String? = null
+    }
+
+    /**
+     * Pusher én rad. En enkelt avvist skriving (f.eks. en sikkerhetsregel som
+     * blokkerer et bestemt dokument) skal ikke stoppe resten av synkroniseringen
+     * – raden blir stående usynket og forsøkes på nytt neste gang.
+     */
+    private inline fun pushRow(
+        outcome: PushOutcome,
+        id: String,
+        collection: String,
+        write: () -> Unit,
+    ) {
+        try {
+            write()
+        } catch (e: Exception) {
+            outcome.failed++
+            outcome.lastError = "$collection/$id: ${e.message}"
+            log("push avvist for $collection/$id: ${e.message}")
         }
     }
 
     @Throws(Exception::class, kotlin.coroutines.cancellation.CancellationException::class)
+    override suspend fun pushLocalChanges() = withContext(Dispatchers.Default) {
+        val outcome = PushOutcome()
+
+        db.checklistTemplateQueries.getUnsyncedTemplates().executeAsList().forEach { r ->
+            pushRow(outcome, r.id, "templates") {
+                firestore.collection("templates").document(r.id).set(
+                    TemplateDto(r.id, r.name, r.type, r.parentId, r.sortOrder, r.version, r.updatedAt, r.deleted)
+                )
+                db.checklistTemplateQueries.markTemplateSynced(r.id)
+            }
+        }
+        db.checklistItemQueries.getUnsyncedItems().executeAsList().forEach { r ->
+            pushRow(outcome, r.id, "items") {
+                firestore.collection("items").document(r.id).set(
+                    ItemDto(r.id, r.templateId, r.title, r.description, r.requiresValue,
+                        r.unit, r.minValue, r.maxValue, r.sortOrder, r.updatedAt, r.deleted)
+                )
+                db.checklistItemQueries.markItemSynced(r.id)
+            }
+        }
+        db.userQueries.getUnsyncedUsers().executeAsList().forEach { r ->
+            pushRow(outcome, r.id, "users") {
+                firestore.collection("users").document(r.id).set(
+                    UserDto(r.id, r.name, r.role, r.updatedAt, r.deleted)
+                )
+                db.userQueries.markUserSynced(r.id)
+            }
+        }
+        db.ambulanceQueries.getUnsyncedAmbulances().executeAsList().forEach { r ->
+            pushRow(outcome, r.id, "ambulances") {
+                firestore.collection("ambulances").document(r.id).set(
+                    AmbulanceDto(r.id, r.callSign, r.registrationNumber, r.updatedAt, r.deleted)
+                )
+                db.ambulanceQueries.markAmbulanceSynced(r.id)
+            }
+        }
+        db.appLinkQueries.getUnsyncedLinks().executeAsList().forEach { r ->
+            pushRow(outcome, r.id, "links") {
+                firestore.collection("links").document(r.id).set(
+                    LinkDto(r.id, r.title, r.url, r.sortOrder, r.updatedAt, r.deleted)
+                )
+                db.appLinkQueries.markLinkSynced(r.id)
+            }
+        }
+        db.checklistRunQueries.getUnsyncedRuns().executeAsList().forEach { r ->
+            pushRow(outcome, r.id, "runs") {
+                firestore.collection("runs").document(r.id).set(
+                    RunDto(r.id, r.templateId, r.ambulanceId, r.userId, r.createdAt,
+                        r.completedAt, r.status, r.comment, r.updatedAt)
+                )
+                db.checklistRunQueries.markRunSynced(r.id)
+            }
+        }
+        db.checklistResponseQueries.getUnsyncedResponses().executeAsList().forEach { r ->
+            pushRow(outcome, r.id, "responses") {
+                firestore.collection("responses").document(r.id).set(
+                    ResponseDto(r.id, r.checklistRunId, r.itemId, r.result, r.comment, r.reading,
+                        r.checkedAt, r.resolved, r.resolvedAt, r.resolvedReading, r.resolvedVia,
+                        r.resolvedByRunId, r.resolvedByUserId, r.updatedAt)
+                )
+                db.checklistResponseQueries.markResponseSynced(r.id)
+            }
+        }
+
+        lastPushFailures = outcome.failed
+        lastPushError = outcome.lastError
+    }
+
+    private var lastPushFailures = 0
+    private var lastPushError: String? = null
+
+    @Throws(Exception::class, kotlin.coroutines.cancellation.CancellationException::class)
     override suspend fun pullRemoteChanges() = withContext(Dispatchers.Default) {
-        firestore.collection("templates").get().documents.forEach { doc ->
+        val templateDocs = firestore.collection("templates").get().documents
+        log("pull: fant ${templateDocs.size} maler i skyen")
+        templateDocs.forEach { doc ->
             val dto = doc.data(TemplateDto.serializer())
             val local = db.checklistTemplateQueries.getTemplateById(dto.id).executeAsOneOrNull()
             if (local == null || dto.updatedAt > local.updatedAt) {

@@ -82,6 +82,27 @@ autentisering påslått.
 fortsatt er tom – slik unngås duplikater når flere enheter settes opp.
 Start derfor én enhet av gangen ved førstegangsoppsett.
 
+## Distribusjon til testere (Android)
+
+Beta rulles ut via Firebase App Distribution. Testerne ligger i gruppa
+`ambulansegruppa` i Firebase-konsollen og får varsel om nye versjoner
+automatisk.
+
+```
+firebase login          # én gang
+./gradlew :androidApp:betaRelease
+```
+
+Krever at signeringsnøkkelen er satt opp i `local.properties`
+(`RELEASE_STORE_FILE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`,
+`RELEASE_KEY_PASSWORD`). Fila er utelatt fra git. Skriv hva som er nytt i
+`release-notes.txt` før du kjører — teksten vises for testerne.
+
+**Nøkkelen må ikke mistes.** Uten den kan appen aldri oppdateres; testerne
+må avinstallere og installere på nytt, og usynkede data på enheten går tapt.
+Ta backup av `.jks`-fila og passordene, og del dem med en ansvarlig i
+ambulansegruppa.
+
 ## Tester
 
 ```

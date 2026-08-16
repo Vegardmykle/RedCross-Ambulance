@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.LocalHospital
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -50,9 +51,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import database.ChecklistTemplate
 import database.GetRecentRuns
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import org.example.project.data.ChecklistRepository
 import org.example.project.storage.DocumentStorage
+import org.example.project.sync.SyncStatus
 import org.example.project.ui.ArchiveScreen
 import org.example.project.ui.ChecklistRunScreen
 import org.example.project.ui.CompactWidthBreakpoint
@@ -60,6 +64,8 @@ import org.example.project.ui.DashboardScreen
 import org.example.project.ui.EditTemplateScreen
 import org.example.project.ui.LocalIsCompact
 import org.example.project.ui.ResourcesScreen
+import org.example.project.ui.RkError
+import org.example.project.ui.RkErrorContainer
 import org.example.project.ui.RkRed
 import org.example.project.ui.RkTheme
 import org.example.project.ui.RunDetailScreen
@@ -90,6 +96,7 @@ fun App(
     documentStorage: DocumentStorage,
     onRequestPdfImport: (() -> Unit)? = null,
     onSyncRequest: (suspend () -> Unit)? = null,
+    syncStatus: Flow<SyncStatus>? = null,
 ) {
     RkTheme {
         var tab by remember { mutableIntStateOf(0) }
@@ -104,6 +111,11 @@ fun App(
 
         val ambulances by repository.ambulances().collectAsState(emptyList())
         val callSign = ambulances.firstOrNull()?.callSign
+
+        // Synkfeil ble tidligere svelget helt – nå ser mannskapet at data
+        // ikke har nådd de andre enhetene
+        val status by (syncStatus ?: emptyFlow()).collectAsState(SyncStatus.Idle)
+        val syncError = (status as? SyncStatus.Error)?.message
 
         val refresh: (() -> Unit)? = onSyncRequest?.let { sync ->
             {
@@ -150,6 +162,13 @@ fun App(
                 val isCompact = maxWidth < CompactWidthBreakpoint
 
                 CompositionLocalProvider(LocalIsCompact provides isCompact) {
+                    val shellContent: @Composable () -> Unit = {
+                        Column(Modifier.fillMaxSize()) {
+                            SyncErrorBanner(syncError)
+                            Box(Modifier.weight(1f)) { content() }
+                        }
+                    }
+
                     if (isCompact) {
                         PhoneShell(
                             isSyncing = isSyncing,
@@ -157,7 +176,7 @@ fun App(
                             selected = tab,
                             onSelect = selectTab,
                             showChrome = stack.isEmpty(),
-                            content = content,
+                            content = shellContent,
                         )
                     } else {
                         TabletShell(
@@ -166,11 +185,39 @@ fun App(
                             onRefresh = refresh,
                             selected = tab,
                             onSelect = selectTab,
-                            content = content,
+                            content = shellContent,
                         )
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Vises når synkroniseringen feiler helt eller delvis. Uten dette ser
+ * mannskapet en vellykket synk selv om avviket aldri nådde skyen.
+ */
+@Composable
+private fun SyncErrorBanner(message: String?) {
+    if (message == null) return
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .background(RkErrorContainer, RoundedCornerShape(12.dp))
+            .padding(14.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Icon(Icons.Default.Warning, null, tint = RkError)
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text("Synkronisering feilet", fontWeight = FontWeight.SemiBold)
+            Text(
+                message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

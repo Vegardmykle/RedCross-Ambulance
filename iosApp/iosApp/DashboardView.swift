@@ -9,12 +9,16 @@ struct DashboardView: View {
     @State private var links: [AppLink] = []
     @AppStorage("selectedAmbulanceId") private var selectedAmbulanceId = ""
     @State private var isSyncing = false
+    @State private var syncError: String?
 
     @Environment(\.openURL) private var openURL
 
     private func syncNow() async {
         guard !isSyncing else { return }
         isSyncing = true
+        syncError = nil
+        // syncAll fanger feil internt og rapporterer dem via status-flyten,
+        // som observeres i .task nedenfor
         try? await AppDependencies.shared.syncService.syncAll()
         isSyncing = false
     }
@@ -32,6 +36,7 @@ struct DashboardView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     ambulancePicker
+                    syncErrorBanner
                     dailyCard
                     periodicSection
                     quickLinksSection
@@ -74,6 +79,40 @@ struct DashboardView: View {
             for await list in repo.links() {
                 links = list
             }
+        }
+        .task {
+            // SKIE gjør sealed interface om til en Swift-enum vi kan switche på
+            for await status in AppDependencies.shared.syncService.status {
+                switch onEnum(of: status) {
+                case .error(let error):
+                    syncError = error.message
+                default:
+                    syncError = nil
+                }
+            }
+        }
+    }
+
+    /// Synkfeil ble tidligere svelget helt – nå ser mannskapet at data
+    /// ikke har nådd de andre enhetene.
+    @ViewBuilder
+    private var syncErrorBanner: some View {
+        if let syncError {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Color.rkError)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Synkronisering feilet")
+                        .fontWeight(.semibold)
+                    Text(syncError)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding()
+            .background(Color.rkErrorContainer)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
 

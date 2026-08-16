@@ -1,6 +1,6 @@
 [versions]
 agp = "9.0.1"
-firebaseAppDistribution = "5.1.1"
+firebaseAppDistribution = "5.3.0"
 android-compileSdk = "36"
 android-minSdk = "24"
 android-targetSdk = "36"

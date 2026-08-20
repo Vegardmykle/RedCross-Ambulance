@@ -1,6 +1,7 @@
 package org.example.project.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -16,7 +17,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MedicalServices
@@ -24,6 +27,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.ViewWeek
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -33,6 +38,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -57,7 +65,8 @@ fun DashboardScreen(
     val deficiencies by repo.openDeficiencies().collectAsState(emptyList())
     val uriHandler = LocalUriHandler.current
 
-    val ambulance = ambulances.firstOrNull()
+    val selection = LocalAmbulanceSelection.current
+    val ambulance = ambulances.firstOrNull { it.id == selection.selectedId }
     val typeById = templates.associate { it.id to it.type }
 
     fun latestCompleted(type: String): Long? = runs
@@ -74,7 +83,9 @@ fun DashboardScreen(
     if (isCompact) {
         // Telefon: samme oppbygning som iOS DashboardView
         PhoneDashboard(
-            callSign = ambulance?.callSign,
+            ambulances = ambulances,
+            selected = ambulance,
+            onSelectAmbulance = selection.select,
             dailyName = templates.firstOrNull { it.type == "DAILY" }?.name,
             dailyDone = dailyDone,
             links = links,
@@ -88,9 +99,14 @@ fun DashboardScreen(
     // Hovedinnhold (nettbrett)
     val mainContent: @Composable ColumnScope.() -> Unit = {
             Text(
-                "Operativ status${ambulance?.let { " – ${it.callSign}" } ?: ""}",
+                "Operativ status",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
+            )
+            AmbulancePicker(
+                ambulances = ambulances,
+                selected = ambulance,
+                onSelect = selection.select,
             )
 
             OutlinedCard {
@@ -239,7 +255,9 @@ fun DashboardScreen(
 
 @Composable
 private fun PhoneDashboard(
-    callSign: String?,
+    ambulances: List<database.Ambulance>,
+    selected: database.Ambulance?,
+    onSelectAmbulance: (String) -> Unit,
     dailyName: String?,
     dailyDone: Boolean,
     links: List<database.AppLink>,
@@ -247,6 +265,7 @@ private fun PhoneDashboard(
     onGoToArchive: () -> Unit,
     openLink: (String) -> Unit,
 ) {
+    val callSign = selected?.callSign
     Column(
         Modifier
             .fillMaxSize()
@@ -254,15 +273,11 @@ private fun PhoneDashboard(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        // Ambulanse-etikett (som iOS: Label med kors-ikon)
-        if (callSign != null) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.MedicalServices, null, tint = RkRed)
-                Spacer(Modifier.width(8.dp))
-                Text(callSign, style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold)
-            }
-        }
+        AmbulancePicker(
+            ambulances = ambulances,
+            selected = selected,
+            onSelect = onSelectAmbulance,
+        )
 
         // Dagens gjøremål-kort (hvitt kort med kapsel-badge, som iOS)
         PhoneCard {
@@ -348,6 +363,76 @@ private fun PhoneDashboard(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Velger hvilken ambulanse appen jobber med. Er det bare ett kjøretøy, vises
+ * det som ren tekst – ingen grunn til å be om et valg som ikke finnes.
+ */
+@Composable
+private fun AmbulancePicker(
+    ambulances: List<database.Ambulance>,
+    selected: database.Ambulance?,
+    onSelect: (String) -> Unit,
+) {
+    if (ambulances.isEmpty()) return
+
+    if (ambulances.size == 1) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.MedicalServices, null, tint = RkRed)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                ambulances.first().callSign,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        return
+    }
+
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.heightIn(min = 48.dp),
+        ) {
+            Icon(Icons.Default.MedicalServices, null, tint = RkRed)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                selected?.callSign ?: "Velg kjøretøy",
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.width(6.dp))
+            Icon(Icons.Default.ArrowDropDown, null)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            ambulances.forEach { ambulance ->
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(ambulance.callSign)
+                            if (ambulance.registrationNumber.isNotBlank()) {
+                                Text(
+                                    ambulance.registrationNumber,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    },
+                    leadingIcon = {
+                        if (ambulance.id == selected?.id) {
+                            Icon(Icons.Default.Check, null, tint = RkRed)
+                        }
+                    },
+                    onClick = {
+                        onSelect(ambulance.id)
+                        expanded = false
+                    },
+                )
             }
         }
     }

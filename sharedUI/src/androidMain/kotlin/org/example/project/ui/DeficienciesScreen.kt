@@ -127,7 +127,7 @@ internal fun ResolveDialog(
     repo: ChecklistRepository,
     deficiency: OpenDeficiency,
     onDismiss: () -> Unit,
-    onResolved: (suspend () -> Unit)? = null,
+    onResolved: (() -> Unit)? = null,
 ) {
     val users by repo.users().collectAsState(emptyList())
     var crewId by remember { mutableStateOf("") }
@@ -179,16 +179,22 @@ internal fun ResolveDialog(
                 enabled = canSave,
                 onClick = {
                     scope.launch {
-                        try {
+                        val saved = try {
                             repo.resolveDeficiency(
                                 deficiency.id,
                                 crewId.trim(),
                                 if (requiresValue) normalizeNumber(valueText) else null,
                             )
+                            true
+                        } catch (e: Exception) {
+                            error = e.message ?: "Sjekk at verdien er innenfor grensene$limits."
+                            false
+                        }
+                        // Synk utenfor try: den er lagret lokalt uansett, og
+                        // en synkfeil skal ikke se ut som en valideringsfeil
+                        if (saved) {
                             onResolved?.invoke()
                             onDismiss()
-                        } catch (e: Exception) {
-                            error = "Sjekk at verdien er innenfor grensene$limits."
                         }
                     }
                 },

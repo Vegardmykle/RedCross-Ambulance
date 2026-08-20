@@ -41,7 +41,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,7 +52,6 @@ import database.ChecklistTemplate
 import database.GetRecentRuns
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.launch
 import org.example.project.data.ChecklistRepository
 import org.example.project.storage.DocumentStorage
 import org.example.project.sync.SyncStatus
@@ -97,14 +95,17 @@ fun App(
     repository: ChecklistRepository,
     documentStorage: DocumentStorage,
     onRequestPdfImport: (() -> Unit)? = null,
-    onSyncRequest: (suspend () -> Unit)? = null,
+    /**
+     * Utløser synkronisering. Må startes på en scope som overlever
+     * skjermbytter – ikke på en Compose-scope, som kanselleres når
+     * skjermen forlates og dermed dreper synken midt i en push.
+     */
+    onSyncRequest: (() -> Unit)? = null,
     syncStatus: Flow<SyncStatus>? = null,
 ) {
     RkTheme {
         var tab by remember { mutableIntStateOf(0) }
         var stack by remember { mutableStateOf<List<Screen>>(emptyList()) }
-        var isSyncing by remember { mutableStateOf(false) }
-        val scope = rememberCoroutineScope()
 
         val pop: () -> Unit = { stack = stack.dropLast(1) }
         val push: (Screen) -> Unit = { stack = stack + it }
@@ -120,17 +121,9 @@ fun App(
         // ikke har nådd de andre enhetene
         val status by (syncStatus ?: emptyFlow()).collectAsState(SyncStatus.Idle)
         val syncError = (status as? SyncStatus.Error)?.message
+        val isSyncing = status is SyncStatus.Syncing
 
-        val refresh: (() -> Unit)? = onSyncRequest?.let { sync ->
-            {
-                scope.launch {
-                    isSyncing = true
-                    sync()
-                    isSyncing = false
-                }
-                Unit
-            }
-        }
+        val refresh: (() -> Unit)? = onSyncRequest
 
         val content: @Composable () -> Unit = {
             when (val screen = stack.lastOrNull()) {

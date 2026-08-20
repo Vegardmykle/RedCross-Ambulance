@@ -68,8 +68,19 @@ FROM ChecklistRun
 JOIN ChecklistTemplate ON ChecklistTemplate.id = ChecklistRun.templateId
 JOIN Ambulance ON Ambulance.id = ChecklistRun.ambulanceId
 LEFT JOIN User ON User.id = ChecklistRun.userId
+-- En kontroll som ble åpnet, men aldri besvart, er ikke en hendelse.
+-- Uten dette fylles arkivet av tomme rader hver gang noen bare kikker.
+WHERE EXISTS (
+    SELECT 1 FROM ChecklistResponse
+    WHERE ChecklistResponse.checklistRunId = ChecklistRun.id
+)
 ORDER BY createdAt DESC
 LIMIT ?1;
+
+countResponsesForRunId:
+SELECT COUNT(*)
+FROM ChecklistResponse
+WHERE checklistRunId = ?1;
 
 deleteRun:
 DELETE FROM ChecklistRun

@@ -167,7 +167,15 @@ class ChecklistRepository(private val db: AppDatabase) {
             val open = db.checklistRunQueries.getOpenRun(templateId, ambulanceId).executeAsOneOrNull()
             if (open != null) {
                 if (open.createdAt >= startOfTodayMillis()) return@withContext open
-                db.checklistRunQueries.expireRun(open.id, currentTimeMillis())
+                // En gammel kontroll uten et eneste svar er ingen dokumentasjon –
+                // den slettes i stedet for å bevares som utløpt
+                val answered = db.checklistRunQueries
+                    .countResponsesForRunId(open.id).executeAsOne()
+                if (answered == 0L) {
+                    db.checklistRunQueries.deleteRun(open.id)
+                } else {
+                    db.checklistRunQueries.expireRun(open.id, currentTimeMillis())
+                }
             }
             val id = randomId()
             db.checklistRunQueries.insertRun(id, templateId, ambulanceId, currentTimeMillis())
@@ -252,6 +260,11 @@ class ChecklistRepository(private val db: AppDatabase) {
             }
             val expected = db.checklistItemQueries
                 .countItemsForTemplateTree(run.templateId).executeAsOne()
+            // En liste uten punkter beviser ingenting – en signatur på den ville
+            // sett ut som en gjennomført kontroll i arkivet
+            check(expected > 0) {
+                "Sjekklisten har ingen punkter og kan ikke signeres"
+            }
             val answered = db.checklistResponseQueries
                 .countResponsesForRun(runId).executeAsOne()
             check(answered >= expected) {

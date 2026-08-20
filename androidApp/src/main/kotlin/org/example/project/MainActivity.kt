@@ -8,7 +8,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.example.project.data.ChecklistRepository
@@ -25,6 +28,18 @@ class MainActivity : ComponentActivity() {
     private val documentStorage by lazy { AndroidDocumentStorage(applicationContext) }
     private val syncService by lazy { FirebaseSyncService(database) }
 
+    /**
+     * Synkronisering må overleve at skjermen den ble startet fra forsvinner.
+     * Kjøres den på en Compose-scope, drepes den midt i en push når brukeren
+     * navigerer videre – typisk rett etter signering, som er nettopp når
+     * dataene må ut til de andre bilene.
+     */
+    private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    private fun requestSync() {
+        syncScope.launch { syncService.syncAll() }
+    }
+
     private val pickPdf = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -35,7 +50,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        lifecycleScope.launch {
+        syncScope.launch {
             // Pull først så vi ikke seeder duplikater av data som finnes i skyen,
             // seed bare hvis databasen fortsatt er tom, push deretter.
             syncService.syncAll()
@@ -48,10 +63,15 @@ class MainActivity : ComponentActivity() {
                 repository = repository,
                 documentStorage = documentStorage,
                 onRequestPdfImport = { pickPdf.launch(arrayOf("application/pdf")) },
-                onSyncRequest = { syncService.syncAll() },
+                onSyncRequest = ::requestSync,
                 syncStatus = syncService.status,
             )
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (isFinishing) syncScope.cancel()
     }
 
     private fun importPdf(uri: Uri) {

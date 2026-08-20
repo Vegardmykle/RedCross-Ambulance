@@ -4,17 +4,19 @@ Forvaltningsdokument. Viser hva som er verifisert med automatiske tester, hva so
 ikke er det, og hvilken risiko som følger av hullene. Formålet er ikke å vise en
 høy dekningsprosent, men å gjøre det tydelig hvor en feil faktisk får konsekvenser.
 
-Sist oppdatert: 16. august 2026 · 33 automatiske tester, alle grønne.
+Sist oppdatert: 20. august 2026 · 45 automatiske tester.
 
 ## Oversikt
 
 ```mermaid
 flowchart TB
-    subgraph Testet["Dekket av automatiske tester (33)"]
+    subgraph Testet["Dekket av automatiske tester (45)"]
         direction LR
         sign["Signering og fullføring\n8 tester"]
         limits["Grenseverdier på målinger\n13 tester"]
         lifecycle["Avvikslivssyklus\n12 tester"]
+        moves["Flytting av sekker\n7 tester"]
+        empty["Tomme kontroller\n5 tester"]
     end
 
     subgraph Delvis["Delvis dekket – indirekte"]
@@ -44,6 +46,8 @@ flowchart TB
 |---|---|---|---|
 | Signering og fullføring | `CompleteRunTest` (8) | Mannskaps-ID er påkrevd; alle punkter må være besvart, også de i sekker; slettede punkter blokkerer ikke; dobbeltsignering avvises; svar låses etter signering | En sjekkliste kunne blitt godkjent uten at alt utstyr faktisk er kontrollert |
 | Grenseverdier på målinger | `MeasurementLimitsTest` (13) | Verdi utenfor min/maks flagges automatisk som mangelfull selv ved JA-svar; grensene er inklusive; ugyldige tall avvises; løsing krever ny verdi innenfor grensa; gammel verdi bevares | Et oksygenapparat med for lavt trykk kunne stått registrert som «i orden» |
+| Flytting av sekker | `MoveBagTest` (7) | Punktene følger med til ny liste; signeringskravet oppdateres; historikken røres ikke; ulovlige flyttinger avvises (sekk i sekk, hovedliste, slettet mål) | Utstyr kunne blitt borte fra kontrollen, eller havnet i en liste som ikke kontrolleres |
+| Tomme kontroller | `EmptyRunTest` (5) | Åpnet-men-ubesvart kontroll vises ikke i arkivet og ryddes bort ved dagsskifte; svar som er gitt bevares som utløpt; liste uten punkter kan ikke signeres | Arkivet ville fylles av tomme rader, og en tom liste kunne fått en signatur som så ut som en gjennomført kontroll |
 | Avvikslivssyklus | `DeficiencyLifecycleTest` (12) | Automatisk lukking ved JA neste vakt (RECHECK); videreføring ved nytt avvik (SUPERSEDED) med sporing tilbake til første melding; angring ved endret svar i samme kontroll; avvik lekker ikke mellom ambulanser; manuell løsing overskrives ikke | Avvik kunne forsvunnet fra oversikten uten å være rettet, eller blitt dobbeltført |
 
 Kjøres med `./gradlew :sharedLogic:testAndroidHostTest`. Hver test får sin egen

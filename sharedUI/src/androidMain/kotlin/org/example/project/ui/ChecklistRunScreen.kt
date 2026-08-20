@@ -61,7 +61,7 @@ fun ChecklistRunScreen(
     templateType: String,
     onOpen: (Screen) -> Unit,
     onBack: (() -> Unit)?,
-    onSyncRequest: (suspend () -> Unit)? = null,
+    onSyncRequest: (() -> Unit)? = null,
 ) {
     val templates by repo.topLevelTemplates().collectAsState(emptyList())
     val template = templates.firstOrNull { it.type == templateType }
@@ -104,10 +104,18 @@ fun ChecklistRunScreen(
     var showSignDialog by remember { mutableStateOf(false) }
     var justCompleted by remember { mutableStateOf(false) }
 
+    var saveError by remember { mutableStateOf<String?>(null) }
+
     fun answer(item: ChecklistItem, result: ItemResult, comment: String?, reading: String?) {
         val r = run ?: return
         scope.launch {
-            try { repo.setResponse(r.id, item.id, result, comment, reading) } catch (_: Exception) {}
+            try {
+                repo.setResponse(r.id, item.id, result, comment, reading)
+            } catch (e: Exception) {
+                // Et svar som ikke ble lagret må mannskapet få vite om –
+                // ellers tror de utstyret er kontrollert
+                saveError = e.message ?: "Kunne ikke lagre svaret"
+            }
         }
     }
 
@@ -219,6 +227,15 @@ fun ChecklistRunScreen(
         )
     }
 
+    saveError?.let { message ->
+        AlertDialog(
+            onDismissRequest = { saveError = null },
+            title = { Text("Kunne ikke lagre") },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { saveError = null }) { Text("OK") } },
+        )
+    }
+
     if (showSignDialog) {
         SignDialog(
             repo = repo,
@@ -232,12 +249,19 @@ fun ChecklistRunScreen(
                 val r = run ?: return@SignDialog false
                 val t = template ?: return@SignDialog false
                 try {
+                    // Lokal lagring er det som teller – signaturen er gyldig
+                    // i det den ligger i SQLite, uavhengig av dekning
                     repo.completeRun(r.id, userId, null)
                     justCompleted = true
                     run = repo.startOrResumeRun(t.id, r.ambulanceId)
-                    onSyncRequest?.invoke() // synk i bakgrunnen; feiler stille uten dekning
+
+                    // Synk skjer i bakgrunnen på en scope som overlever at
+                    // denne skjermen forlates, og kan aldri gjøre en vellykket
+                    // signering om til en feilmelding
+                    onSyncRequest?.invoke()
                     true
                 } catch (e: Exception) {
+                    saveError = e.message ?: "Kunne ikke signere"
                     false
                 }
             },

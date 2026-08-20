@@ -52,6 +52,18 @@ UPDATE ChecklistTemplate
 SET deleted = 1, updatedAt = ?2, synced = 0
 WHERE id = ?1;
 
+-- Flytter en sekk til en annen hovedliste. Punktene følger med, siden de
+-- peker på sekken og ikke på hovedlisten.
+moveTemplateToParent:
+UPDATE ChecklistTemplate
+SET parentId = ?2, sortOrder = ?3, version = version + 1, updatedAt = ?4, synced = 0
+WHERE id = ?1;
+
+maxBagSortOrderForParent:
+SELECT MAX(sortOrder) AS maxSort
+FROM ChecklistTemplate
+WHERE parentId = ?1 AND deleted = 0;
+
 countTemplates:
 SELECT COUNT(*)
 FROM ChecklistTemplate

@@ -47,8 +47,10 @@ android {
         applicationId = "no.oslorodekors.ambulanse"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "1.0"
+        // Øk versionCode for hver utsendelse – ellers ser ikke testerne
+        // at det er kommet en ny versjon
+        versionCode = 2
+        versionName = "1.1.0"
     }
     packaging {
         resources {

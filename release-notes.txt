@@ -1,6 +1,6 @@
 Beta – ny versjon
 
 Endringer i denne versjonen:
-- first version
+- add error message
 
 Meld fra om feil til Vegard.

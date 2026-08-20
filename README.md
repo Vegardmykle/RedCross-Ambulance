@@ -93,6 +93,11 @@ firebase login          # én gang
 ./gradlew :androidApp:betaRelease
 ```
 
+**Før hver utsendelse:** øk `versionCode` i `androidApp/build.gradle.kts` og
+`CURRENT_PROJECT_VERSION` i `iosApp/Configuration/Config.xcconfig`. Hold
+`versionName`/`MARKETING_VERSION` like på begge plattformer. Uten økt
+versjonsnummer ser ikke testerne at det er kommet noe nytt.
+
 Krever at signeringsnøkkelen er satt opp i `local.properties`
 (`RELEASE_STORE_FILE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`,
 `RELEASE_KEY_PASSWORD`). Fila er utelatt fra git. Skriv hva som er nytt i

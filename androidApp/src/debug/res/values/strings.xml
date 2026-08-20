@@ -1,0 +1,5 @@
+<resources>
+    <!-- Tydelig merking så testversjonen ikke forveksles med den appen
+         mannskapet bruker, når begge ligger på samme nettbrett -->
+    <string name="app_name">RK Ambulanse TEST</string>
+</resources>

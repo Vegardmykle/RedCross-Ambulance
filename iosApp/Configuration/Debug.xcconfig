@@ -1,0 +1,7 @@
+#include "Config.xcconfig"
+
+// Testmiljø: egen bundle-ID slik at testappen kan ligge side om side med
+// den ekte appen, med hver sin lokale database. Snakker med Firebase-
+// prosjektet redcross-ambulanse-dev (se Scripts/select-firebase-plist.sh).
+PRODUCT_BUNDLE_IDENTIFIER=no.oslorodekors.ambulanse.debug$(TEAM_ID)
+PRODUCT_NAME=RK Ambulanse TEST

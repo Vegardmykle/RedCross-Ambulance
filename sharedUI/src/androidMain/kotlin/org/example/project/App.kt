@@ -62,7 +62,9 @@ import org.example.project.ui.ChecklistRunScreen
 import org.example.project.ui.CompactWidthBreakpoint
 import org.example.project.ui.DashboardScreen
 import org.example.project.ui.EditTemplateScreen
+import org.example.project.ui.LocalAmbulanceSelection
 import org.example.project.ui.LocalIsCompact
+import org.example.project.ui.rememberAmbulanceSelection
 import org.example.project.ui.ResourcesScreen
 import org.example.project.ui.RkError
 import org.example.project.ui.RkErrorContainer
@@ -110,7 +112,9 @@ fun App(
         BackHandler(enabled = stack.isNotEmpty()) { pop() }
 
         val ambulances by repository.ambulances().collectAsState(emptyList())
-        val callSign = ambulances.firstOrNull()?.callSign
+        val ambulanceSelection = rememberAmbulanceSelection(ambulances)
+        val callSign = ambulances
+            .firstOrNull { it.id == ambulanceSelection.selectedId }?.callSign
 
         // Synkfeil ble tidligere svelget helt – nå ser mannskapet at data
         // ikke har nådd de andre enhetene
@@ -161,7 +165,10 @@ fun App(
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val isCompact = maxWidth < CompactWidthBreakpoint
 
-                CompositionLocalProvider(LocalIsCompact provides isCompact) {
+                CompositionLocalProvider(
+                    LocalIsCompact provides isCompact,
+                    LocalAmbulanceSelection provides ambulanceSelection,
+                ) {
                     val shellContent: @Composable () -> Unit = {
                         Column(Modifier.fillMaxSize()) {
                             SyncErrorBanner(syncError)

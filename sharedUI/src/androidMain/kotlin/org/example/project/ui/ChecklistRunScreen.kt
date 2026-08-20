@@ -66,7 +66,9 @@ fun ChecklistRunScreen(
     val templates by repo.topLevelTemplates().collectAsState(emptyList())
     val template = templates.firstOrNull { it.type == templateType }
     val ambulances by repo.ambulances().collectAsState(emptyList())
-    val ambulanceId = ambulances.firstOrNull()?.id
+    val selection = LocalAmbulanceSelection.current
+    // Må følge valgt kjøretøy – ellers registreres kontrollen på feil bil
+    val ambulanceId = ambulances.firstOrNull { it.id == selection.selectedId }?.id
 
     var run by remember { mutableStateOf<ChecklistRun?>(null) }
     androidx.compose.runtime.LaunchedEffect(template?.id, ambulanceId) {

@@ -1,0 +1,4 @@
+#include "Config.xcconfig"
+
+// Produksjon: arver alt fra Config.xcconfig. Egen fil for symmetri med
+// Debug.xcconfig, og for å ha et sted å legge release-spesifikke flagg.

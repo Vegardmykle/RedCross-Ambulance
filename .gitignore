@@ -25,6 +25,8 @@ node_modules/
 # Firebase-konfig (repoet er offentlig)
 google-services.json
 GoogleService-Info.plist
+GoogleService-Info-Dev.plist
+GoogleService-Info-Prod.plist
 
 # Hemmeligheter og lokale miljøfiler
 .env

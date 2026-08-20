@@ -69,6 +69,18 @@ android {
     }
 
     buildTypes {
+        /**
+         * Debug snakker med testprosjektet i Firebase (redcross-ambulanse-dev)
+         * via androidApp/src/debug/google-services.json, og installeres med eget
+         * applicationId. Testdata havner dermed aldri i den ekte historikken,
+         * og testversjonen kan ligge side om side med den appen mannskapet bruker.
+         */
+        getByName("debug") {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            // Appnavnet overstyres i src/debug/res/values/strings.xml
+        }
+
         getByName("release") {
             isMinifyEnabled = false
             signingConfigs.findByName("release")?.let { signingConfig = it }

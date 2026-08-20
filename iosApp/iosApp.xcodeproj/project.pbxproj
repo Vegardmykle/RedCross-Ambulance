@@ -13,13 +13,15 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		87F6B9CBB1FD358FDB0CAAF9 /* .app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = .app; sourceTree = BUILT_PRODUCTS_DIR; };
+		87F6B9CBB1FD358FDB0CAAF9 /* RK Ambulanse TEST.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "RK Ambulanse TEST.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		D3FA9E416B1071D443577CEF /* Exceptions for "iosApp" folder in "iosApp" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				"Firebase/GoogleService-Info-Dev.plist",
+				"Firebase/GoogleService-Info-Prod.plist",
 				Info.plist,
 			);
 			target = 6C6CC7FAE2B49A26584E2604 /* iosApp */;
@@ -66,7 +68,7 @@
 		B96DC70F3589B2A9BAEB4C3E /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				87F6B9CBB1FD358FDB0CAAF9 /* .app */,
+				87F6B9CBB1FD358FDB0CAAF9 /* RK Ambulanse TEST.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -91,6 +93,7 @@
 				76637AB13EBE2FB8DF7781D0 /* Compile Kotlin Framework */,
 				48EE8A1321233F0F26B75BD0 /* Sources */,
 				0A0C9D7868225E785D78E81D /* Frameworks */,
+				03320FDD3036F2C900A0A71D /* ShellScript */,
 				7080DB8DBC76172E9E12D9CA /* Resources */,
 			);
 			buildRules = (
@@ -107,7 +110,7 @@
 				03FE53863000EC9600FFF51F /* FirebaseFirestore */,
 			);
 			productName = iosApp;
-			productReference = 87F6B9CBB1FD358FDB0CAAF9 /* .app */;
+			productReference = 87F6B9CBB1FD358FDB0CAAF9 /* RK Ambulanse TEST.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -158,6 +161,24 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		03320FDD3036F2C900A0A71D /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n\"${SRCROOT}/Scripts/select-firebase-plist.sh\"\n";
+		};
 		76637AB13EBE2FB8DF7781D0 /* Compile Kotlin Framework */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -221,7 +242,7 @@
 		73A6F9E956D76396521CB8AC /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReferenceAnchor = D36A28218587088CDD690FD1 /* Configuration */;
-			baseConfigurationReferenceRelativePath = Config.xcconfig;
+			baseConfigurationReferenceRelativePath = Debug.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -286,7 +307,7 @@
 		AA5DF223115ED4160F936EE8 /* Release */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReferenceAnchor = D36A28218587088CDD690FD1 /* Configuration */;
-			baseConfigurationReferenceRelativePath = Config.xcconfig;
+			baseConfigurationReferenceRelativePath = Release.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;

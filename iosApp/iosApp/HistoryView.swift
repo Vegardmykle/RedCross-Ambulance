@@ -129,6 +129,17 @@ struct HistoryRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            // Mannskapet må kunne se at en melding ikke er delt med
+            // de andre bilene ennå
+            if run.hasUnsyncedChanges == 1 {
+                Label(
+                    "Ikke synkronisert – ligger bare på denne enheten",
+                    systemImage: "icloud.slash"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+            }
         }
         .padding(.vertical, 4)
     }

@@ -63,7 +63,14 @@ SELECT ChecklistRun.*, ChecklistTemplate.name AS templateName, Ambulance.callSig
      FROM ChecklistResponse
      WHERE ChecklistResponse.checklistRunId = ChecklistRun.id
        AND ChecklistResponse.result != 'JA'
-       AND ChecklistResponse.resolvedVia = 'SUPERSEDED') AS supersededCount
+       AND ChecklistResponse.resolvedVia = 'SUPERSEDED') AS supersededCount,
+    -- 1 hvis kontrollen eller noen av svarene ennå ikke har nådd skyen.
+    -- Mannskapet må kunne se at en melding ikke er delt med de andre bilene.
+    (CASE WHEN ChecklistRun.synced = 0 OR EXISTS (
+        SELECT 1 FROM ChecklistResponse
+        WHERE ChecklistResponse.checklistRunId = ChecklistRun.id
+          AND ChecklistResponse.synced = 0
+    ) THEN 1 ELSE 0 END) AS hasUnsyncedChanges
 FROM ChecklistRun
 JOIN ChecklistTemplate ON ChecklistTemplate.id = ChecklistRun.templateId
 JOIN Ambulance ON Ambulance.id = ChecklistRun.ambulanceId

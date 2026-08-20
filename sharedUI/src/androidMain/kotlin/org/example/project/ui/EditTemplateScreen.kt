@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -109,6 +110,51 @@ fun EditTemplateScreen(
     }
 }
 
+/**
+ * Velger hvilken hovedliste en sekk skal flyttes til. Punktene følger med,
+ * siden de peker på sekken og ikke på hovedlisten.
+ */
+@Composable
+private fun MoveBagDialog(
+    repo: ChecklistRepository,
+    bag: ChecklistTemplate,
+    onDismiss: () -> Unit,
+    onMove: (String) -> Unit,
+) {
+    val templates by repo.topLevelTemplates().collectAsState(emptyList())
+    val candidates = templates.filter { it.id != bag.parentId }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Flytt «${bag.name}»") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (candidates.isEmpty()) {
+                    Text("Ingen andre lister å flytte til.")
+                } else {
+                    candidates.forEach { target ->
+                        TextButton(
+                            onClick = { onMove(target.id) },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        ) {
+                            Text(target.name, modifier = Modifier.weight(1f))
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Alle punktene følger med. Tidligere kontroller påvirkes ikke, " +
+                            "men en påbegynt kontroll på lista du flytter til vil kreve " +
+                            "svar på punktene.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Avbryt") } },
+    )
+}
+
 @Composable
 private fun EditSection(
     repo: ChecklistRepository,
@@ -124,6 +170,8 @@ private fun EditSection(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var deleteItemTarget by remember { mutableStateOf<ChecklistItem?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
+    var showMoveDialog by remember { mutableStateOf(false) }
+    var moveError by remember { mutableStateOf<String?>(null) }
 
     fun move(index: Int, delta: Int) {
         val target = index + delta
@@ -150,6 +198,10 @@ private fun EditSection(
                         DropdownMenuItem(text = { Text("Endre navn") }, onClick = {
                             menuOpen = false
                             showRenameDialog = true
+                        })
+                        DropdownMenuItem(text = { Text("Flytt til annen liste") }, onClick = {
+                            menuOpen = false
+                            showMoveDialog = true
                         })
                         DropdownMenuItem(text = { Text("Slett sekk") }, onClick = {
                             menuOpen = false
@@ -239,6 +291,33 @@ private fun EditSection(
                 scope.launch { repo.renameTemplate(template.id, name) }
                 showRenameDialog = false
             },
+        )
+    }
+
+    if (showMoveDialog) {
+        MoveBagDialog(
+            repo = repo,
+            bag = template,
+            onDismiss = { showMoveDialog = false },
+            onMove = { targetId ->
+                scope.launch {
+                    try {
+                        repo.moveBag(template.id, targetId)
+                        showMoveDialog = false
+                    } catch (e: Exception) {
+                        moveError = e.message ?: "Kunne ikke flytte sekken"
+                    }
+                }
+            },
+        )
+    }
+
+    moveError?.let { message ->
+        AlertDialog(
+            onDismissRequest = { moveError = null },
+            title = { Text("Kunne ikke flytte") },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { moveError = null }) { Text("OK") } },
         )
     }
 

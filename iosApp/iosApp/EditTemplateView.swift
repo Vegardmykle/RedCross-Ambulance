@@ -75,6 +75,9 @@ struct EditItemsSection: View {
     @State private var renameText = ""
     @State private var showDeleteConfirm = false
     @State private var deleteItemTarget: ChecklistItem?
+    @State private var showMoveSheet = false
+    @State private var moveTargets: [ChecklistTemplate] = []
+    @State private var moveError: String?
 
     var body: some View {
         Section {
@@ -134,6 +137,9 @@ struct EditItemsSection: View {
                         Button("Endre navn") {
                             renameText = template.name
                             showRenameAlert = true
+                        }
+                        Button("Flytt til annen liste") {
+                            showMoveSheet = true
                         }
                         Button("Slett sekk", role: .destructive) {
                             showDeleteConfirm = true
@@ -210,6 +216,9 @@ struct EditItemsSection: View {
             }
             Button("Avbryt", role: .cancel) {}
         }
+        .sheet(isPresented: $showMoveSheet) {
+            MoveBagSheet(bag: template)
+        }
         .task {
             for await list in repo.itemsFor(templateId: template.id) {
                 items = list
@@ -234,6 +243,84 @@ struct EditItemsSection: View {
         value.truncatingRemainder(dividingBy: 1) == 0
             ? String(Int(value))
             : String(value)
+    }
+}
+
+/// Flytter en sekk/taske til en annen hovedliste. Punktene følger med.
+struct MoveBagSheet: View {
+    let bag: ChecklistTemplate
+
+    private let repo = AppDependencies.shared.repository
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var templates: [ChecklistTemplate] = []
+    @State private var errorMessage: String?
+
+    private var candidates: [ChecklistTemplate] {
+        templates.filter { $0.id != bag.parentId }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(candidates, id: \.id) { target in
+                        Button {
+                            move(to: target)
+                        } label: {
+                            HStack {
+                                Text(target.name)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Image(systemName: "arrow.right")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(minHeight: 44)
+                        }
+                    }
+                    if candidates.isEmpty {
+                        Text("Ingen andre lister å flytte til.")
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Flytt «\(bag.name)» til")
+                } footer: {
+                    Text("Alle punktene i sekken følger med. Tidligere kontroller påvirkes ikke, men en påbegynt kontroll på lista du flytter til vil kreve svar på punktene.")
+                }
+            }
+            .navigationTitle("Flytt sekk")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Avbryt") { dismiss() }
+                }
+            }
+            .alert("Kunne ikke flytte", isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) { errorMessage = nil }
+            } message: {
+                Text(errorMessage ?? "")
+            }
+        }
+        .task {
+            for await list in repo.topLevelTemplates() {
+                templates = list
+            }
+        }
+    }
+
+    private func move(to target: ChecklistTemplate) {
+        Task {
+            do {
+                try await repo.moveBag(bagId: bag.id, newParentId: target.id)
+                Task { try? await AppDependencies.shared.syncService.syncAll() }
+                dismiss()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
     }
 }
 

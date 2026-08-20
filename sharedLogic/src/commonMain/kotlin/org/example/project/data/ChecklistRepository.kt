@@ -62,6 +62,35 @@ class ChecklistRepository(private val db: AppDatabase) {
             db.checklistTemplateQueries.updateTemplateName(id, name, currentTimeMillis())
         }
 
+    /**
+     * Flytter en sekk/taske til en annen hovedliste. Punktene følger med.
+     *
+     * Historiske kontroller påvirkes ikke – de peker på svarene som ble gitt.
+     * Men en påbegynt, usignert kontroll på mottakerlista vil etter flyttingen
+     * kreve svar også på punktene i sekken, siden alle punkter må besvares før
+     * signering.
+     */
+    @Throws(IllegalArgumentException::class, IllegalStateException::class, CancellationException::class)
+    suspend fun moveBag(bagId: String, newParentId: String) = withContext(Dispatchers.Default) {
+        require(bagId != newParentId) { "En sekk kan ikke være sin egen hovedliste" }
+
+        val bag = db.checklistTemplateQueries.getTemplateById(bagId).executeAsOneOrNull()
+        checkNotNull(bag) { "Fant ikke sekken" }
+        check(bag.type == TemplateType.BAG.db) { "Bare sekker kan flyttes" }
+
+        val parent = db.checklistTemplateQueries.getTemplateById(newParentId).executeAsOneOrNull()
+        checkNotNull(parent) { "Fant ikke lista sekken skal flyttes til" }
+        check(parent.parentId == null) { "En sekk kan ikke legges inni en annen sekk" }
+        check(parent.deleted == 0L) { "Lista er slettet" }
+
+        val next = (db.checklistTemplateQueries
+            .maxBagSortOrderForParent(newParentId).executeAsOne().maxSort ?: 0L) + 1
+
+        db.checklistTemplateQueries.moveTemplateToParent(
+            bagId, newParentId, next, currentTimeMillis(),
+        )
+    }
+
     /** Sletter (soft) mal, dens punkter og eventuelle sekker med innhold. */
     suspend fun deleteTemplate(id: String) = withContext(Dispatchers.Default) {
         val now = currentTimeMillis()

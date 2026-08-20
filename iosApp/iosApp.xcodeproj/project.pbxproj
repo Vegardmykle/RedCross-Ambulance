@@ -13,7 +13,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		87F6B9CBB1FD358FDB0CAAF9 /* RedCross-Ambulance.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "RedCross-Ambulance.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		87F6B9CBB1FD358FDB0CAAF9 /* .app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = .app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -66,7 +66,7 @@
 		B96DC70F3589B2A9BAEB4C3E /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				87F6B9CBB1FD358FDB0CAAF9 /* RedCross-Ambulance.app */,
+				87F6B9CBB1FD358FDB0CAAF9 /* .app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -107,7 +107,7 @@
 				03FE53863000EC9600FFF51F /* FirebaseFirestore */,
 			);
 			productName = iosApp;
-			productReference = 87F6B9CBB1FD358FDB0CAAF9 /* RedCross-Ambulance.app */;
+			productReference = 87F6B9CBB1FD358FDB0CAAF9 /* .app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */

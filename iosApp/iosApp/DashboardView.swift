@@ -10,6 +10,7 @@ struct DashboardView: View {
     @AppStorage("selectedAmbulanceId") private var selectedAmbulanceId = ""
     @State private var isSyncing = false
     @State private var syncError: String?
+    @State private var isOffline = false
 
     @Environment(\.openURL) private var openURL
 
@@ -37,6 +38,7 @@ struct DashboardView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     ambulancePicker
                     syncErrorBanner
+                    offlineBanner
                     dailyCard
                     periodicSection
                     quickLinksSection
@@ -86,10 +88,35 @@ struct DashboardView: View {
                 switch onEnum(of: status) {
                 case .error(let error):
                     syncError = error.message
+                    isOffline = false
+                case .offline:
+                    // Normaltilstand uten dekning – ikke en feil
+                    syncError = nil
+                    isOffline = true
                 default:
                     syncError = nil
+                    isOffline = false
                 }
             }
+        }
+    }
+
+    /// Uten dekning fungerer appen som normalt – alt lagres lokalt og sendes
+    /// når nettet er tilbake. Derfor en nøytral opplysning, ikke en feilmelding.
+    @ViewBuilder
+    private var offlineBanner: some View {
+        if isOffline {
+            HStack(spacing: 10) {
+                Image(systemName: "icloud.slash")
+                    .foregroundStyle(.secondary)
+                Text("Ingen nettforbindelse. Arbeidet lagres på enheten og sendes automatisk når du får dekning.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding()
+            .background(Color(.secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
 

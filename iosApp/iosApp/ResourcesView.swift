@@ -36,6 +36,7 @@ struct ResourcesView: View {
                 documentsSection
                 linksSection
                 crewSection
+                versionSection
             }
             .navigationTitle("Ressurser og skjema")
             .fileImporter(
@@ -121,6 +122,36 @@ struct ResourcesView: View {
     }
 
     // MARK: Administrasjon (mannskap + kjøretøy, sammenleggbart)
+
+    /// Versjon og miljø. Gjør det mulig for testere å oppgi nøyaktig hvilken
+    /// versjon en feil gjelder, og skiller test fra produksjon.
+    private var versionSection: some View {
+        Section {
+            HStack {
+                #if DEBUG
+                Text("TESTVERSJON")
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.orange.opacity(0.15))
+                    .foregroundStyle(.orange)
+                    .clipShape(Capsule())
+                #endif
+                Text("Versjon \(Self.appVersion)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+        }
+    }
+
+    private static var appVersion: String {
+        let info = Bundle.main.infoDictionary
+        let name = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "\(name) (\(build))"
+    }
 
     private var crewSection: some View {
         Section {

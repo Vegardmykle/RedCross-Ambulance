@@ -49,8 +49,8 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         // Øk versionCode for hver utsendelse – ellers ser ikke testerne
         // at det er kommet en ny versjon
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
     }
     packaging {
         resources {

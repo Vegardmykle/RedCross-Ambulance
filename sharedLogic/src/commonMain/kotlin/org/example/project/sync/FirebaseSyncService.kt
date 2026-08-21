@@ -49,8 +49,28 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
         } catch (e: Exception) {
             // Uten denne loggen forsvinner synkfeil sporløst – kallerne bruker try?
             log("FEIL: ${e::class.simpleName}: ${e.message}")
-            _status.value = SyncStatus.Error(e.message ?: "Ukjent synkroniseringsfeil")
+            _status.value = if (isNetworkError(e)) {
+                SyncStatus.Offline
+            } else {
+                SyncStatus.Error(e.message ?: "Ukjent synkroniseringsfeil")
+            }
         }
+    }
+
+    /**
+     * Manglende dekning er ikke en feil i denne appen – den er lokal-først.
+     * Firebase gir ulike typer på iOS og Android, så vi kjenner igjen både
+     * unntaksnavn og meldingstekst.
+     */
+    private fun isNetworkError(e: Exception): Boolean {
+        val name = e::class.simpleName.orEmpty()
+        val message = e.message.orEmpty().lowercase()
+        return name.contains("Network", ignoreCase = true) ||
+            message.contains("network") ||
+            message.contains("unreachable") ||
+            message.contains("timeout") ||
+            message.contains("offline") ||
+            message.contains("host")
     }
 
     /** Synlig i Xcode-konsollen (iOS) og logcat (Android): filtrer på «[Sync]». */

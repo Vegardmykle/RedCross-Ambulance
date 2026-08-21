@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.LocalHospital
 import androidx.compose.material.icons.filled.Refresh
@@ -121,6 +122,7 @@ fun App(
         // ikke har nådd de andre enhetene
         val status by (syncStatus ?: emptyFlow()).collectAsState(SyncStatus.Idle)
         val syncError = (status as? SyncStatus.Error)?.message
+        val isOffline = status is SyncStatus.Offline
         val isSyncing = status is SyncStatus.Syncing
 
         val refresh: (() -> Unit)? = onSyncRequest
@@ -165,6 +167,7 @@ fun App(
                     val shellContent: @Composable () -> Unit = {
                         Column(Modifier.fillMaxSize()) {
                             SyncErrorBanner(syncError)
+                            OfflineBanner(isOffline)
                             Box(Modifier.weight(1f)) { content() }
                         }
                     }
@@ -191,6 +194,38 @@ fun App(
                 }
             }
         }
+    }
+}
+
+/**
+ * Uten dekning fungerer appen som normalt – alt lagres lokalt og sendes
+ * når nettet er tilbake. Derfor en nøytral opplysning, ikke en feilmelding.
+ */
+@Composable
+private fun OfflineBanner(visible: Boolean) {
+    if (!visible) return
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant,
+                RoundedCornerShape(12.dp),
+            )
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.CloudOff, null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            "Ingen nettforbindelse. Arbeidet lagres på enheten og sendes " +
+                "automatisk når du får dekning.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

@@ -47,6 +47,30 @@ import kotlinx.coroutines.launch
 import org.example.project.data.ChecklistRepository
 import org.example.project.storage.DocumentStorage
 
+/**
+ * Viser versjon og miljø nederst. Under testing kjører test- og
+ * produksjonsappen side om side mot hver sin database, og en forveksling
+ * kan bety at testdata havner i den ekte historikken.
+ */
+@Composable
+private fun VersionFooter() {
+    val build = rememberBuildInfo()
+    Row(
+        Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (build.isDebug) {
+            ResultBadge("TESTVERSJON", RkOrange)
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(
+            "Versjon ${build.versionName} (${build.versionCode})",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 @Composable
 fun ResourcesScreen(
     repo: ChecklistRepository,
@@ -231,6 +255,8 @@ fun ResourcesScreen(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+
+            item { VersionFooter() }
         }
     }
 

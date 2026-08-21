@@ -28,5 +28,13 @@ interface SyncService {
 sealed interface SyncStatus {
     data object Idle : SyncStatus
     data object Syncing : SyncStatus
+
+    /**
+     * Ingen nettforbindelse. Skilles fra Error fordi dette er normaltilstanden
+     * i en ambulanse – appen er lokal-først og fungerer fullt ut. Skal derfor
+     * ikke presenteres som en feil mannskapet må gjøre noe med.
+     */
+    data object Offline : SyncStatus
+
     data class Error(val message: String) : SyncStatus
 }

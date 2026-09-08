@@ -135,7 +135,8 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
             pushRow(outcome, r.id, "items") {
                 firestore.collection("items").document(r.id).set(
                     ItemDto(r.id, r.templateId, r.title, r.description, r.requiresValue,
-                        r.unit, r.minValue, r.maxValue, r.sortOrder, r.updatedAt, r.deleted)
+                        r.unit, r.minValue, r.maxValue, r.sortOrder, r.phase,
+                        r.updatedAt, r.deleted)
                 )
                 db.checklistItemQueries.markItemSynced(r.id)
             }
@@ -168,7 +169,8 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
             pushRow(outcome, r.id, "runs") {
                 firestore.collection("runs").document(r.id).set(
                     RunDto(r.id, r.templateId, r.ambulanceId, r.userId, r.createdAt,
-                        r.completedAt, r.status, r.comment, r.updatedAt)
+                        r.completedAt, r.status, r.comment,
+                        r.beforeSignedAt, r.beforeUserId, r.updatedAt)
                 )
                 db.checklistRunQueries.markRunSynced(r.id)
             }
@@ -211,7 +213,8 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
             if (local == null || dto.updatedAt > local.updatedAt) {
                 db.checklistItemQueries.applyRemoteItem(
                     dto.id, dto.templateId, dto.title, dto.description, dto.requiresValue,
-                    dto.unit, dto.minValue, dto.maxValue, dto.sortOrder, dto.updatedAt, dto.deleted,
+                    dto.unit, dto.minValue, dto.maxValue, dto.sortOrder, dto.phase,
+                    dto.updatedAt, dto.deleted,
                 )
             }
         }
@@ -246,7 +249,8 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
             if (local == null || dto.updatedAt > local.updatedAt) {
                 db.checklistRunQueries.applyRemoteRun(
                     dto.id, dto.templateId, dto.ambulanceId, dto.userId, dto.createdAt,
-                    dto.completedAt, dto.status, dto.comment, dto.updatedAt,
+                    dto.completedAt, dto.status, dto.comment,
+                    dto.beforeSignedAt, dto.beforeUserId, dto.updatedAt,
                 )
             }
         }

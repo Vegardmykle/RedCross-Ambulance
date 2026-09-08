@@ -62,6 +62,16 @@ SELECT COUNT(*)
 FROM ChecklistResponse
 WHERE checklistRunId = ?1;
 
+-- Antall besvarte punkter i én fase. Gjør at før-delen kan signeres uten at
+-- etter-delen er rørt.
+countResponsesForRunInPhase:
+SELECT COUNT(*)
+FROM ChecklistResponse
+JOIN ChecklistItem ON ChecklistItem.id = ChecklistResponse.itemId
+WHERE ChecklistResponse.checklistRunId = ?1
+  AND ChecklistItem.phase = ?2
+  AND ChecklistItem.deleted = 0;
+
 getOpenDeficiencies:
 SELECT
     ChecklistResponse.id,

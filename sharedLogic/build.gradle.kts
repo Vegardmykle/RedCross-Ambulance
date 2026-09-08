@@ -13,6 +13,24 @@ sqldelight {
         create("AppDatabase") {
             packageName.set("org.example.project.db")
             srcDirs("src/commonMain/data/sqldelight")
+
+            /**
+             * Appen er i drift hos mannskapet, så skjemaendringer må skje via
+             * migrasjoner – ellers mister enhetene lokale data ved oppdatering.
+             *
+             * Arbeidsflyt ved en endring:
+             *   1. Endre .sq-filene til det nye skjemaet
+             *   2. Legg til migrations/<versjon>.sqm med ALTER TABLE-setningene
+             *   3. Kjør ./gradlew :sharedLogic:generateAppDatabaseSchema
+             *
+             * verifyMigrations får bygget til å feile hvis migrasjonene ikke
+             * ender opp med nøyaktig samme skjema som .sq-filene beskriver.
+             * Det er hele poenget: uten den kan de to skli fra hverandre uten
+             * at noen oppdager det før en enhet i en ambulanse krasjer.
+             */
+            schemaOutputDirectory.set(file("src/commonMain/data/sqldelight/databases"))
+            migrationOutputDirectory.set(layout.buildDirectory.dir("migrations"))
+            verifyMigrations.set(true)
         }
     }
 }

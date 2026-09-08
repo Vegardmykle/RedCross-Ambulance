@@ -28,6 +28,9 @@ data class ItemDto(
     val minValue: Double? = null,
     val maxValue: Double? = null,
     val sortOrder: Long = 0,
+    // Standardverdi gjør at dokumenter skrevet av eldre appversjoner
+    // fortsatt lar seg lese – de mangler feltet
+    val phase: String = "BEFORE",
     val updatedAt: Long = 0,
     val deleted: Long = 0,
 )
@@ -70,6 +73,8 @@ data class RunDto(
     val completedAt: Long? = null,
     val status: String,
     val comment: String? = null,
+    val beforeSignedAt: Long? = null,
+    val beforeUserId: String? = null,
     val updatedAt: Long = 0,
 )
 

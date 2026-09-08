@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,11 +20,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.ViewWeek
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
@@ -44,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -117,6 +121,7 @@ fun DashboardScreen(
                         ResultBadge(
                             if (dailyDone) "FULLFØRT" else "IKKE PÅBEGYNT",
                             if (dailyDone) RkGreen else RkError,
+                            if (dailyDone) Icons.Default.CheckCircle else Icons.Default.Warning,
                         )
                     }
                     Text(
@@ -286,6 +291,7 @@ private fun PhoneDashboard(
                 CapsuleBadge(
                     text = if (dailyDone) "Fullført" else "Ikke påbegynt",
                     color = if (dailyDone) RkGreen else RkError,
+                    icon = if (dailyDone) Icons.Default.CheckCircle else Icons.Default.Warning,
                 )
             }
             if (dailyName != null && callSign != null) {
@@ -464,18 +470,24 @@ private fun SectionCaption(text: String, modifier: Modifier = Modifier) {
 
 /** Kapsel-badge som iOS («Ikke påbegynt» / «Fullført»). */
 @Composable
-private fun CapsuleBadge(text: String, color: Color) {
+private fun CapsuleBadge(text: String, color: Color, icon: ImageVector) {
     Surface(
         color = color.copy(alpha = 0.15f),
         contentColor = color,
         shape = RoundedCornerShape(50),
     ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
+        Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(icon, null, Modifier.size(12.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
+            )
+        }
     }
 }
 
@@ -497,6 +509,7 @@ private fun PeriodicCard(
                 ResultBadge(
                     if (done) "FULLFØRT" else "VENTER",
                     if (done) RkGreen else RkOrange,
+                    if (done) Icons.Default.CheckCircle else Icons.Default.Schedule,
                 )
             }
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)

@@ -1,10 +1,21 @@
 package org.example.project.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Dangerous
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -14,6 +25,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.example.project.model.ItemResult
@@ -21,13 +33,16 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// Farger fra designet (DESIGN.md)
+// Farger fra designet (DESIGN.md).
+// Grønn og oransje er mørknet for å nå WCAG-kontrastkrav mot lys bakgrunn
+// også i små tekststørrelser. Fargene brukes aldri alene – hvert resultat
+// har også ikon og tekst, se resultIcon().
 val RkRed = Color(0xFFB3000F)
 val RkRedContainer = Color(0xFFD92323)
 val RkError = Color(0xFFBA1A1A)
 val RkErrorContainer = Color(0xFFFFDAD6)
-val RkGreen = Color(0xFF2E7D32)
-val RkOrange = Color(0xFFB26A00)
+val RkGreen = Color(0xFF1B5E20)
+val RkOrange = Color(0xFF8A5200)
 val RkSurface = Color(0xFFF9F9F9)
 
 @Composable
@@ -71,18 +86,29 @@ fun TabletContainer(content: @Composable () -> Unit) {
     }
 }
 
+/**
+ * Merkelapp med farge, tekst og – når det er oppgitt – ikon.
+ * Fargen er alltid en forsterkning, aldri den eneste informasjonsbæreren
+ * (WCAG 1.4.1): teksten står der uansett, og ikonet gir en tredje kanal
+ * for dem som verken skiller fargene eller leser små bokstaver lett.
+ */
 @Composable
-fun ResultBadge(text: String, color: Color) {
+fun ResultBadge(text: String, color: Color, icon: ImageVector? = null) {
     Surface(
         color = color.copy(alpha = 0.15f),
         contentColor = color,
         shape = RoundedCornerShape(12.dp),
     ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelSmall,
+        Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (icon != null) {
+                Icon(icon, null, Modifier.size(12.dp))
+                Spacer(Modifier.width(4.dp))
+            }
+            Text(text, style = MaterialTheme.typography.labelSmall)
+        }
     }
 }
 
@@ -93,6 +119,19 @@ fun resultColor(result: String): Color = when (result) {
     "JA" -> RkGreen
     "ODELAGT" -> RkError
     else -> RkOrange
+}
+
+/**
+ * Form som skiller resultatene fra hverandre uten farge. Hvert resultat har
+ * en tydelig ulik silhuett – hake, kryss, trekant, utropstegn i sirkel – slik
+ * at de kan skilles av fargeblinde og i sterkt sollys.
+ */
+fun resultIcon(result: String): ImageVector = when (result) {
+    "JA" -> Icons.Default.CheckCircle
+    "NEI" -> Icons.Default.Cancel
+    "MANGELFULL" -> Icons.Default.Warning
+    "ODELAGT" -> Icons.Default.Dangerous
+    else -> Icons.Default.HelpOutline
 }
 
 fun formatMillis(millis: Long): String =

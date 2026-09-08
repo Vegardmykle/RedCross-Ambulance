@@ -30,13 +30,19 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
             ensureSignedIn()
             log("innlogget som ${Firebase.auth.currentUser?.uid ?: "ingen"}")
 
-            // Push kan feile per rad uten å kaste – pull skal uansett kjøre,
-            // slik at enheten får inn endringer fra de andre bilene
-            pushLocalChanges()
-            log("push ferdig (${lastPushFailures} avvist)")
-
+            // Pull FØR push. Rekkefølgen er avgjørende for at «nyeste vinner»
+            // skal fungere: push skriver hele dokumentet uten å se på hva som
+            // ligger der fra før, så en enhet som har vært offline ville ellers
+            // kunne overskrive nyere endringer fra de andre bilene med sin egen
+            // utdaterte versjon. Ved å hente først blir lokale rader som er
+            // eldre enn skyen erstattet – og dermed ikke lenger usynkede.
             pullRemoteChanges()
             log("pull ferdig")
+
+            // Push kan feile per rad uten å kaste, slik at én avvist rad ikke
+            // stopper resten
+            pushLocalChanges()
+            log("push ferdig (${lastPushFailures} avvist)")
 
             _status.value = if (lastPushFailures > 0) {
                 SyncStatus.Error(

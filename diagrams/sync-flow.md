@@ -1,5 +1,13 @@
 # Synkroniseringsflyt (lokal-først)
 
+> **Rekkefølge: pull før push.** Push skriver hele dokumentet uten å
+> sammenligne med det som allerede ligger i skyen. En enhet som har vært
+> offline ville derfor kunne overskrive nyere endringer fra de andre bilene
+> med sin egen utdaterte versjon. Ved å hente først blir lokale rader som er
+> eldre enn skyen erstattet, og de er dermed ikke lenger usynkede når pushen
+> kjører. Sikkerhetsreglene håndhever i tillegg at `updatedAt` aldri kan gå
+> bakover – det fanger kappløpet der to enheter pusher samtidig.
+
 ```mermaid
 sequenceDiagram
     participant UI as App-UI

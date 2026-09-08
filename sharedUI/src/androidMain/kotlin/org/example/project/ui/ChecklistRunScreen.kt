@@ -52,6 +52,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import database.ChecklistItem
 import database.ChecklistResponse
@@ -128,11 +129,18 @@ fun ChecklistRunScreen(
         }
     }
 
-    fun sortedByAnswer(list: List<ChecklistItem>): List<ChecklistItem> =
-        list.sortedWith(
-            compareBy<ChecklistItem> { responseByItem[it.id]?.result == "JA" }
-                .thenBy { it.sortOrder }
-        )
+    /**
+     * Punktene står i fast rekkefølge mens kontrollen pågår.
+     *
+     * Tidligere sank besvarte punkter til bunnen, men da flyttet innholdet seg
+     * under fingeren på mannskapet: du sikter på ett punkt, lista hopper, og du
+     * treffer et annet. Særlig uheldig med hansker, i bevegelse, eller for
+     * brukere med nedsatt syn eller skjelvinger – og på et sikkerhetskritisk
+     * skjema er et feiltrykk dyrt. Rekkefølgen følger nå sortOrder, som er den
+     * rekkefølgen utstyret faktisk ligger i bilen.
+     */
+    fun inFixedOrder(list: List<ChecklistItem>): List<ChecklistItem> =
+        list.sortedBy { it.sortOrder }
 
     Scaffold(
         topBar = {
@@ -180,7 +188,7 @@ fun ChecklistRunScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
-                items(sortedByAnswer(items), key = { it.id }) { item ->
+                items(inFixedOrder(items), key = { it.id }) { item ->
                     ChecklistItemRow(
                         item = item,
                         response = responseByItem[item.id],
@@ -278,9 +286,12 @@ fun ChecklistRunScreen(
     }
 }
 
+/**
+ * Ikon over tekst, så knappen leses både med og uten farge.
+ * Teksten får bryte over to linjer i stedet for å kuttes – med forstørret
+ * skrift (WCAG 1.4.4) er «Ødelagt» bredere enn knappen.
+ */
 @Composable
-/** Ikon over tekst, så knappen leses både med og uten farge. */
-
 private fun AnswerLabel(icon: ImageVector, label: String, bold: Boolean) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(icon, null, Modifier.size(18.dp))
@@ -288,7 +299,8 @@ private fun AnswerLabel(icon: ImageVector, label: String, bold: Boolean) {
             label,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
-            maxLines = 1,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
         )
     }
 }
@@ -465,9 +477,8 @@ fun BagCard(
     var expanded by remember { mutableStateOf(false) }
 
     val answered = items.count { responseByItem[it.id] != null }
-    val sorted = items.sortedWith(
-        compareBy<ChecklistItem> { responseByItem[it.id]?.result == "JA" }.thenBy { it.sortOrder }
-    )
+    // Fast rekkefølge – punktene skal ikke flytte seg mens mannskapet svarer
+    val sorted = items.sortedBy { it.sortOrder }
 
     Card {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

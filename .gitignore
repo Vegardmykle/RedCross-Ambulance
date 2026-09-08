@@ -32,5 +32,9 @@ GoogleService-Info-Prod.plist
 .env
 *.pem
 
+# Tjenestekontonøkler – gir full skrivetilgang til Firestore
+scripts/keys/
+*-service-account.json
+
 # Profilering/krasjdumper
 *.hprof

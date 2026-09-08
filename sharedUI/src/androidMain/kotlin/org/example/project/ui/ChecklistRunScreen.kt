@@ -20,7 +20,10 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -42,6 +45,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import database.ChecklistItem
@@ -270,6 +279,20 @@ fun ChecklistRunScreen(
 }
 
 @Composable
+/** Ikon over tekst, så knappen leses både med og uten farge. */
+
+private fun AnswerLabel(icon: ImageVector, label: String, bold: Boolean) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(icon, null, Modifier.size(18.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+            maxLines = 1,
+        )
+    }
+}
+@Composable
 fun ChecklistItemRow(
     item: ChecklistItem,
     response: ChecklistResponse?,
@@ -295,25 +318,55 @@ fun ChecklistItemRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
+            // Valgt svar markeres med fylt flate, ikon og halvfet tekst –
+            // ikke bare farge (WCAG 1.4.1). Ikonene har ulik silhuett, så
+            // svarene kan skilles uten å oppfatte fargeforskjellen.
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ItemResult.entries.forEach { choice ->
                     val selected = response?.result == choice.db
-                    OutlinedButton(
-                        onClick = {
-                            if (choice == ItemResult.JA) {
-                                if (item.requiresValue != 0L) showValueDialog = true
-                                else onAnswer(ItemResult.JA, null, null)
-                            } else {
-                                pendingChoice = choice
-                            }
-                        },
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (selected) resultColor(choice.db)
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                    ) {
-                        Text(if (choice == ItemResult.MANGELFULL) "Mangel" else choice.label)
+                    val color = resultColor(choice.db)
+                    val label = if (choice == ItemResult.MANGELFULL) "Mangel" else choice.label
+
+                    val onClick = {
+                        if (choice == ItemResult.JA) {
+                            if (item.requiresValue != 0L) showValueDialog = true
+                            else onAnswer(ItemResult.JA, null, null)
+                        } else {
+                            pendingChoice = choice
+                        }
+                    }
+                    val shared = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp)
+                        .semantics {
+                            this.selected = selected
+                            contentDescription =
+                                if (selected) "$label, valgt" else label
+                        }
+
+                    if (selected) {
+                        Button(
+                            onClick = onClick,
+                            modifier = shared,
+                            contentPadding = PaddingValues(horizontal = 6.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = color,
+                                contentColor = Color.White,
+                            ),
+                        ) {
+                            AnswerLabel(resultIcon(choice.db), label, bold = true)
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = onClick,
+                            modifier = shared,
+                            contentPadding = PaddingValues(horizontal = 6.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                        ) {
+                            AnswerLabel(resultIcon(choice.db), label, bold = false)
+                        }
                     }
                 }
             }

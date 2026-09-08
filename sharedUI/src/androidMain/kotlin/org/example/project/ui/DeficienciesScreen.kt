@@ -85,7 +85,11 @@ internal fun DeficiencyCard(deficiency: OpenDeficiency, onResolve: () -> Unit) {
             Row(verticalAlignment = Alignment.Top) {
                 Text(deficiency.itemTitle, style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f))
-                ResultBadge(resultLabel(deficiency.result), resultColor(deficiency.result))
+                ResultBadge(
+                    resultLabel(deficiency.result),
+                    resultColor(deficiency.result),
+                    resultIcon(deficiency.result),
+                )
             }
             deficiency.comment?.takeIf { it.isNotEmpty() }?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall,

@@ -13,7 +13,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -42,7 +45,7 @@ internal fun HistoryRunCard(run: GetRecentRuns, onClick: () -> Unit) {
             Row(verticalAlignment = Alignment.Top) {
                 Text(run.templateName, style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f))
-                ResultBadge(statusText(run.status), statusColor(run.status))
+                ResultBadge(statusText(run.status), statusColor(run.status), statusIcon(run.status))
             }
             Text(
                 "${run.callSign} · ${formatMillis(run.completedAt ?: run.createdAt)}",
@@ -77,6 +80,13 @@ private fun statusText(status: String) = when (status) {
     "COMPLETED" -> "Signert"
     "EXPIRED" -> "Utløpt – ikke signert"
     else -> "Pågår"
+}
+
+/** Ikon i tillegg til farge, så statusen kan leses uten fargesyn. */
+private fun statusIcon(status: String) = when (status) {
+    "COMPLETED" -> Icons.Default.CheckCircle
+    "EXPIRED" -> Icons.Default.Schedule
+    else -> Icons.Default.HourglassEmpty
 }
 
 private fun statusColor(status: String) = when (status) {
@@ -180,7 +190,7 @@ private fun ResponseDetailCard(response: GetResponsesWithItemsForRun) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 Text(response.itemTitle, modifier = Modifier.weight(1f))
-                ResultBadge(badgeText, badgeColor)
+                ResultBadge(badgeText, badgeColor, resultIcon(response.result))
             }
             response.reading?.takeIf { it.isNotEmpty() }?.let {
                 Text("Avlest: $it ${response.unit ?: ""}",

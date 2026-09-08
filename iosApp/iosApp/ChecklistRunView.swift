@@ -109,7 +109,7 @@ struct ChecklistRunScreen: View {
 
     private var equipmentSection: some View {
         Section("Utstyr") {
-            ForEach(sortedByAnswer(items), id: \.id) { item in
+            ForEach(inFixedOrder(items), id: \.id) { item in
                 ChecklistItemRow(
                     item: item,
                     response: responses[item.id],
@@ -273,14 +273,15 @@ struct ChecklistRunScreen: View {
         )
     }
 
-    /// Besvarte «Ja»-punkter legger seg nederst; ubesvarte og avvik blir stående øverst.
-    private func sortedByAnswer(_ list: [ChecklistItem]) -> [ChecklistItem] {
-        list.sorted { a, b in
-            let aDone = responses[a.id]?.result == "JA"
-            let bDone = responses[b.id]?.result == "JA"
-            if aDone != bDone { return !aDone }
-            return a.sortOrder < b.sortOrder
-        }
+    /// Punktene står i fast rekkefølge mens kontrollen pågår.
+    ///
+    /// Tidligere sank besvarte punkter til bunnen, men da flyttet innholdet seg
+    /// under fingeren på mannskapet: du sikter på ett punkt, lista hopper, og du
+    /// treffer et annet. Særlig uheldig med hansker, i bevegelse, eller for
+    /// brukere med nedsatt syn eller skjelvinger. Rekkefølgen følger nå
+    /// sortOrder, som er den rekkefølgen utstyret ligger i bilen.
+    private func inFixedOrder(_ list: [ChecklistItem]) -> [ChecklistItem] {
+        list.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     private func answer(item: ChecklistItem, choice: AnswerChoice, comment: String?, reading: String?) async {
@@ -442,13 +443,9 @@ struct BagSection: View {
         items.filter { responses[$0.id] != nil }.count
     }
 
+    /// Fast rekkefølge – punktene skal ikke flytte seg mens mannskapet svarer.
     private var sortedItems: [ChecklistItem] {
-        items.sorted { a, b in
-            let aDone = responses[a.id]?.result == "JA"
-            let bDone = responses[b.id]?.result == "JA"
-            if aDone != bDone { return !aDone }
-            return a.sortOrder < b.sortOrder
-        }
+        items.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     var body: some View {

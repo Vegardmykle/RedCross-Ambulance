@@ -1,6 +1,6 @@
 Beta – ny versjon
 
 Endringer i denne versjonen:
-- add error message
+- lagt til støtte for fargeblinde
 
-Meld fra om feil til Vegard.
+Vegard

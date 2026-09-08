@@ -20,7 +20,10 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -42,7 +45,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import database.ChecklistItem
 import database.ChecklistResponse
@@ -119,11 +129,18 @@ fun ChecklistRunScreen(
         }
     }
 
-    fun sortedByAnswer(list: List<ChecklistItem>): List<ChecklistItem> =
-        list.sortedWith(
-            compareBy<ChecklistItem> { responseByItem[it.id]?.result == "JA" }
-                .thenBy { it.sortOrder }
-        )
+    /**
+     * Punktene står i fast rekkefølge mens kontrollen pågår.
+     *
+     * Tidligere sank besvarte punkter til bunnen, men da flyttet innholdet seg
+     * under fingeren på mannskapet: du sikter på ett punkt, lista hopper, og du
+     * treffer et annet. Særlig uheldig med hansker, i bevegelse, eller for
+     * brukere med nedsatt syn eller skjelvinger – og på et sikkerhetskritisk
+     * skjema er et feiltrykk dyrt. Rekkefølgen følger nå sortOrder, som er den
+     * rekkefølgen utstyret faktisk ligger i bilen.
+     */
+    fun inFixedOrder(list: List<ChecklistItem>): List<ChecklistItem> =
+        list.sortedBy { it.sortOrder }
 
     Scaffold(
         topBar = {
@@ -171,7 +188,7 @@ fun ChecklistRunScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
-                items(sortedByAnswer(items), key = { it.id }) { item ->
+                items(inFixedOrder(items), key = { it.id }) { item ->
                     ChecklistItemRow(
                         item = item,
                         response = responseByItem[item.id],
@@ -269,6 +286,24 @@ fun ChecklistRunScreen(
     }
 }
 
+/**
+ * Ikon over tekst, så knappen leses både med og uten farge.
+ * Teksten får bryte over to linjer i stedet for å kuttes – med forstørret
+ * skrift (WCAG 1.4.4) er «Ødelagt» bredere enn knappen.
+ */
+@Composable
+private fun AnswerLabel(icon: ImageVector, label: String, bold: Boolean) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(icon, null, Modifier.size(18.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+        )
+    }
+}
 @Composable
 fun ChecklistItemRow(
     item: ChecklistItem,
@@ -295,25 +330,55 @@ fun ChecklistItemRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
+            // Valgt svar markeres med fylt flate, ikon og halvfet tekst –
+            // ikke bare farge (WCAG 1.4.1). Ikonene har ulik silhuett, så
+            // svarene kan skilles uten å oppfatte fargeforskjellen.
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ItemResult.entries.forEach { choice ->
                     val selected = response?.result == choice.db
-                    OutlinedButton(
-                        onClick = {
-                            if (choice == ItemResult.JA) {
-                                if (item.requiresValue != 0L) showValueDialog = true
-                                else onAnswer(ItemResult.JA, null, null)
-                            } else {
-                                pendingChoice = choice
-                            }
-                        },
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (selected) resultColor(choice.db)
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                    ) {
-                        Text(if (choice == ItemResult.MANGELFULL) "Mangel" else choice.label)
+                    val color = resultColor(choice.db)
+                    val label = if (choice == ItemResult.MANGELFULL) "Mangel" else choice.label
+
+                    val onClick = {
+                        if (choice == ItemResult.JA) {
+                            if (item.requiresValue != 0L) showValueDialog = true
+                            else onAnswer(ItemResult.JA, null, null)
+                        } else {
+                            pendingChoice = choice
+                        }
+                    }
+                    val shared = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp)
+                        .semantics {
+                            this.selected = selected
+                            contentDescription =
+                                if (selected) "$label, valgt" else label
+                        }
+
+                    if (selected) {
+                        Button(
+                            onClick = onClick,
+                            modifier = shared,
+                            contentPadding = PaddingValues(horizontal = 6.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = color,
+                                contentColor = Color.White,
+                            ),
+                        ) {
+                            AnswerLabel(resultIcon(choice.db), label, bold = true)
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = onClick,
+                            modifier = shared,
+                            contentPadding = PaddingValues(horizontal = 6.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                        ) {
+                            AnswerLabel(resultIcon(choice.db), label, bold = false)
+                        }
                     }
                 }
             }
@@ -412,9 +477,8 @@ fun BagCard(
     var expanded by remember { mutableStateOf(false) }
 
     val answered = items.count { responseByItem[it.id] != null }
-    val sorted = items.sortedWith(
-        compareBy<ChecklistItem> { responseByItem[it.id]?.result == "JA" }.thenBy { it.sortOrder }
-    )
+    // Fast rekkefølge – punktene skal ikke flytte seg mens mannskapet svarer
+    val sorted = items.sortedBy { it.sortOrder }
 
     Card {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

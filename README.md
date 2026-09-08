@@ -108,6 +108,17 @@ må avinstallere og installere på nytt, og usynkede data på enheten går tapt.
 Ta backup av `.jks`-fila og passordene, og del dem med en ansvarlig i
 ambulansegruppa.
 
+## Endre databaseskjemaet
+
+Appen er i drift, og enhetene har lokale data som ikke alltid er synkronisert.
+Skjemaendringer må derfor gjøres med migrasjon, ikke ved å endre `.sq`-filene
+alene. Framgangsmåten står i
+[`sharedLogic/src/commonMain/data/sqldelight/migrations/README.md`](sharedLogic/src/commonMain/data/sqldelight/migrations/README.md).
+
+Kort: endre `.sq`, legg til `<versjon>.sqm`, kjør
+`./gradlew :sharedLogic:generateAppDatabaseSchema`. Bygget feiler hvis
+migrasjonene og `.sq`-filene ikke ender opp med samme skjema.
+
 ## Tester
 
 ```

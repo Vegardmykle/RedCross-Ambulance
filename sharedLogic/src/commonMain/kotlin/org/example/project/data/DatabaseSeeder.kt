@@ -3,6 +3,7 @@ package org.example.project.data
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.example.project.db.AppDatabase
+import org.example.project.model.ChecklistPhase
 import org.example.project.model.TemplateType
 import org.example.project.util.currentTimeMillis
 
@@ -27,11 +28,12 @@ class DatabaseSeeder(private val db: AppDatabase) {
             val daily = template("seed-daily", "Sjekkliste før vakt", TemplateType.DAILY)
             items(
                 daily,
-                i("Bilen er supplert med nytt utstyr etter vakt"),
-                i("Oksygen skrudd av og taket er tømt", "Husk sjekk at ventil til stasjonært sug er stengt"),
-                i("Vask av bil innvendig"),
-                i("Vask av bil utvendig"),
-                i("Notert km i Car admin"),
+                // Disse gjøres når vakta er ferdig, ikke før den starter
+                after("Bilen er supplert med nytt utstyr etter vakt"),
+                after("Oksygen skrudd av og taket er tømt", "Husk sjekk at ventil til stasjonært sug er stengt"),
+                after("Vask av bil innvendig"),
+                after("Vask av bil utvendig"),
+                after("Notert km i Car admin"),
             )
 
             val forerkupe = template("seed-forerkupe", "Førerkupe", TemplateType.BAG, daily)
@@ -268,6 +270,7 @@ class DatabaseSeeder(private val db: AppDatabase) {
                 if (spec.unit != null) 1L else 0L, spec.unit,
                 spec.min, spec.max,
                 (index + 1).toLong(),
+                spec.phase.db,
                 currentTimeMillis(),
             )
         }
@@ -279,10 +282,15 @@ class DatabaseSeeder(private val db: AppDatabase) {
         val unit: String? = null,
         val min: Double? = null,
         val max: Double? = null,
+        val phase: ChecklistPhase = ChecklistPhase.BEFORE,
     )
 
     /** Vanlig ja/nei-punkt, med valgfri beskrivelse (plassering o.l.). */
     private fun i(title: String, description: String? = null) = ItemSpec(title, description)
+
+    /** Punkt som hører til avslutningen av vakta, ikke oppstarten. */
+    private fun after(title: String, description: String? = null) =
+        ItemSpec(title, description, phase = ChecklistPhase.AFTER)
 
     /** Punkt som krever avlest verdi. Grenser kan settes i appen. */
     private fun v(title: String, unit: String, min: Double? = null, max: Double? = null) =

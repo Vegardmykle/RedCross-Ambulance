@@ -51,7 +51,8 @@ class EmptyRunTest {
         // Simulerer at kontrollen ble påbegynt i går
         s.db.checklistRunQueries.applyRemoteRun(
             runId, s.templateId, s.ambulanceId, null,
-            /* createdAt = */ 0L, null, "IN_PROGRESS", null, 1L,
+            /* createdAt = */ 0L, null, "IN_PROGRESS", null,
+            /* beforeSignedAt = */ null, /* beforeUserId = */ null, 1L,
         )
         s.startRun() // ny dag, ny kontroll
 
@@ -68,7 +69,8 @@ class EmptyRunTest {
         // Samme kontroll, men flyttet til i går – uten et eneste svar
         s.db.checklistRunQueries.applyRemoteRun(
             runId, s.templateId, s.ambulanceId, null,
-            /* createdAt = */ 0L, null, "IN_PROGRESS", null, 1L,
+            /* createdAt = */ 0L, null, "IN_PROGRESS", null,
+            /* beforeSignedAt = */ null, /* beforeUserId = */ null, 1L,
         )
         val newRunId = s.startRun()
 

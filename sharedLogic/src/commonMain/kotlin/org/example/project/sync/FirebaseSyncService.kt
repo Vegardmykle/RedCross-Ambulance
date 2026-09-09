@@ -3,9 +3,14 @@ package org.example.project.sync
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.auth.auth
 import dev.gitlive.firebase.firestore.firestore
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.example.project.db.AppDatabase
 
@@ -21,9 +26,29 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
 
     private val firestore get() = Firebase.firestore
 
+    /**
+     * Egen scope for synkroniseringen, uavhengig av den som starter den.
+     *
+     * Startes synken fra en skjerm, dør den når skjermen forlates – typisk
+     * rett etter signering, som er nettopp når dataene må ut til de andre
+     * bilene. Da ble halve pushen borte med `JobCancellationException`.
+     */
+    private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** Hindrer at flere synkroniseringer kjører oppå hverandre. */
+    private val syncMutex = Mutex()
+
+    /**
+     * Utløser synkronisering og returnerer med én gang. Dette er inngangen
+     * UI-et skal bruke – den kan ikke avbrytes av at en skjerm lukkes.
+     */
+    fun requestSync() {
+        syncScope.launch { syncAll() }
+    }
+
     /** Push + pull med statusoppdatering. Kalles ved appstart og etter signering. */
     @Throws(Exception::class, kotlin.coroutines.cancellation.CancellationException::class)
-    suspend fun syncAll() {
+    suspend fun syncAll() = syncMutex.withLock {
         _status.value = SyncStatus.Syncing
         try {
             log("start")

@@ -328,7 +328,7 @@ struct ChecklistRunScreen: View {
             try await repo.signBeforeShift(runId: run.id, userId: userId)
             await loadRun(templateId: template.id)
             // Synk i bakgrunnen – feiler stille uten dekning
-            Task { try? await AppDependencies.shared.syncService.syncAll() }
+            AppDependencies.shared.syncService.requestSync()
             return true
         } catch {
             return false
@@ -518,7 +518,7 @@ struct ChecklistRunScreen: View {
             justCompleted = true
             await loadRun(templateId: template.id)
             // Synk i bakgrunnen – feiler stille uten dekning, tas igjen ved neste sync
-            Task { try? await AppDependencies.shared.syncService.syncAll() }
+            AppDependencies.shared.syncService.requestSync()
             return true
         } catch {
             return false

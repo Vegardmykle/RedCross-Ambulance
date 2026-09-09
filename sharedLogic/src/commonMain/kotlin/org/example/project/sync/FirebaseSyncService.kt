@@ -3,9 +3,14 @@ package org.example.project.sync
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.auth.auth
 import dev.gitlive.firebase.firestore.firestore
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.example.project.db.AppDatabase
 
@@ -21,9 +26,29 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
 
     private val firestore get() = Firebase.firestore
 
+    /**
+     * Egen scope for synkroniseringen, uavhengig av den som starter den.
+     *
+     * Startes synken fra en skjerm, dør den når skjermen forlates – typisk
+     * rett etter signering, som er nettopp når dataene må ut til de andre
+     * bilene. Da ble halve pushen borte med `JobCancellationException`.
+     */
+    private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** Hindrer at flere synkroniseringer kjører oppå hverandre. */
+    private val syncMutex = Mutex()
+
+    /**
+     * Utløser synkronisering og returnerer med én gang. Dette er inngangen
+     * UI-et skal bruke – den kan ikke avbrytes av at en skjerm lukkes.
+     */
+    fun requestSync() {
+        syncScope.launch { syncAll() }
+    }
+
     /** Push + pull med statusoppdatering. Kalles ved appstart og etter signering. */
     @Throws(Exception::class, kotlin.coroutines.cancellation.CancellationException::class)
-    suspend fun syncAll() {
+    suspend fun syncAll() = syncMutex.withLock {
         _status.value = SyncStatus.Syncing
         try {
             log("start")
@@ -84,8 +109,19 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
         println("[Sync] $message")
     }
 
+    /**
+     * Anonym innlogging feiler av og til forbigående ved appstart – særlig på
+     * iOS, der nøkkelringen ikke alltid er klar med én gang. Ett nytt forsøk
+     * er nok i praksis, og alternativet er at mannskapet ser en feilmelding
+     * for noe som løser seg selv.
+     */
     private suspend fun ensureSignedIn() {
-        if (Firebase.auth.currentUser == null) {
+        if (Firebase.auth.currentUser != null) return
+        try {
+            Firebase.auth.signInAnonymously()
+        } catch (first: Exception) {
+            log("innlogging feilet, prøver én gang til: ${first.message}")
+            kotlinx.coroutines.delay(1000)
             Firebase.auth.signInAnonymously()
         }
     }
@@ -135,7 +171,8 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
             pushRow(outcome, r.id, "items") {
                 firestore.collection("items").document(r.id).set(
                     ItemDto(r.id, r.templateId, r.title, r.description, r.requiresValue,
-                        r.unit, r.minValue, r.maxValue, r.sortOrder, r.updatedAt, r.deleted)
+                        r.unit, r.minValue, r.maxValue, r.sortOrder, r.phase,
+                        r.updatedAt, r.deleted)
                 )
                 db.checklistItemQueries.markItemSynced(r.id)
             }
@@ -168,7 +205,8 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
             pushRow(outcome, r.id, "runs") {
                 firestore.collection("runs").document(r.id).set(
                     RunDto(r.id, r.templateId, r.ambulanceId, r.userId, r.createdAt,
-                        r.completedAt, r.status, r.comment, r.updatedAt)
+                        r.completedAt, r.status, r.comment,
+                        r.beforeSignedAt, r.beforeUserId, r.updatedAt)
                 )
                 db.checklistRunQueries.markRunSynced(r.id)
             }
@@ -211,7 +249,8 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
             if (local == null || dto.updatedAt > local.updatedAt) {
                 db.checklistItemQueries.applyRemoteItem(
                     dto.id, dto.templateId, dto.title, dto.description, dto.requiresValue,
-                    dto.unit, dto.minValue, dto.maxValue, dto.sortOrder, dto.updatedAt, dto.deleted,
+                    dto.unit, dto.minValue, dto.maxValue, dto.sortOrder, dto.phase,
+                    dto.updatedAt, dto.deleted,
                 )
             }
         }
@@ -246,7 +285,8 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
             if (local == null || dto.updatedAt > local.updatedAt) {
                 db.checklistRunQueries.applyRemoteRun(
                     dto.id, dto.templateId, dto.ambulanceId, dto.userId, dto.createdAt,
-                    dto.completedAt, dto.status, dto.comment, dto.updatedAt,
+                    dto.completedAt, dto.status, dto.comment,
+                    dto.beforeSignedAt, dto.beforeUserId, dto.updatedAt,
                 )
             }
         }

@@ -1,0 +1,108 @@
+rules_version = '2';
+
+// Sikkerhetsregler for RedCross-Ambulance.
+//
+// Reglene er siste forsvar: appen er lokal-først, men alt som skrives til
+// Firestore deles med alle biler. En for streng regel stopper synkroniseringen
+// stille (skjedde 16.08.2026), en for åpen eksponerer mannskapsdata.
+//
+// Kopier hele fila inn i Firebase-konsollen → Firestore Database → Regler,
+// i BÅDE redcross-ambulanse og redcross-ambulanse-dev.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Synkroniseringen er «nyeste vinner». Push skriver hele dokumentet uten
+    // å se på hva som ligger der fra før, så uten denne kunne en enhet som
+    // har vært offline overskrive nyere endringer fra de andre bilene med
+    // sin egen utdaterte versjon.
+    function notOlder() {
+      return request.resource.data.updatedAt >= resource.data.updatedAt;
+    }
+
+    // ---------- Definisjoner: lister, punkter, mannskap, kjøretøy, lenker ----------
+    // Sletting skjer som myk sletting (deleted = 1) via update, aldri som
+    // ekte delete – tombstones må nå alle enheter.
+
+    match /templates/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn() && notOlder();
+      allow delete: if false;
+    }
+
+    match /items/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn() && notOlder();
+      allow delete: if false;
+    }
+
+    match /users/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn() && notOlder();
+      allow delete: if false;
+    }
+
+    match /ambulances/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn() && notOlder();
+      allow delete: if false;
+    }
+
+    match /links/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn() && notOlder();
+      allow delete: if false;
+    }
+
+    // ---------- Kontroller ----------
+    // En vakt signeres i to trinn: før-kontrollen (beforeSignedAt) og
+    // avslutningen (completedAt). Kjøringen står som IN_PROGRESS til begge
+    // er satt.
+    //
+    // Regelen verner mot HVA som endres, ikke mot at dokumentet er ferdig.
+    // Det var nettopp den feilen som blokkerte all synkronisering i august:
+    // «bare oppdater hvis status er IN_PROGRESS» gjorde signerte kontroller
+    // uskrivbare, og siden push kjørte før pull kom enheten aldri videre.
+
+    match /runs/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+
+      allow update: if signedIn()
+        && notOlder()
+        // En avsluttet vakt kan ikke settes tilbake til påbegynt – da kunne
+        // signaturen omgås i ettertid
+        && !(resource.data.status == 'COMPLETED'
+             && request.resource.data.status == 'IN_PROGRESS')
+        // Og avslutningstidspunktet kan ikke fjernes når det først er satt
+        && !(resource.data.completedAt != null
+             && request.resource.data.completedAt == null);
+
+      allow delete: if false;
+    }
+
+    // Svar kan endres så lenge kontrollen er åpen; det er kontrollens egen
+    // status som avgjør om det er lov, håndhevet i appen. Her sikrer vi bare
+    // at historikken ikke går bakover eller forsvinner.
+    match /responses/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn() && notOlder();
+      allow delete: if false;
+    }
+
+    // Alt annet er stengt. Nye samlinger må legges til bevisst.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

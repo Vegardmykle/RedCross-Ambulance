@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Backpack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -62,6 +63,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import org.example.project.Screen
 import org.example.project.data.ChecklistRepository
+import org.example.project.model.ChecklistPhase
 import org.example.project.model.ItemResult
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -109,10 +111,37 @@ fun ChecklistRunScreen(
     val answeredCount = allItems.count { responseByItem[it.id] != null }
     val allAnswered = allItems.isNotEmpty() && answeredCount == allItems.size
 
+    // Vakta kontrolleres i to trinn: utstyret før vakt, avslutningen etterpå.
+    // Er det ingen etter-punkter (ukentlig, månedlig) beholdes én signatur.
+    fun inPhase(list: List<ChecklistItem>, phase: ChecklistPhase) =
+        list.filter { ChecklistPhase.fromDb(it.phase) == phase }
+
+    val beforeItems = inPhase(items, ChecklistPhase.BEFORE)
+    val afterItems = inPhase(allItems, ChecklistPhase.AFTER)
+    val hasAfterPhase = afterItems.isNotEmpty()
+
+    val beforeAll = inPhase(allItems, ChecklistPhase.BEFORE)
+    val beforeAnswered = beforeAll.count { responseByItem[it.id] != null }
+    val beforeComplete = beforeAll.isNotEmpty() && beforeAnswered == beforeAll.size
+    val afterAnswered = afterItems.count { responseByItem[it.id] != null }
+
+    val beforeSignedAt = run?.beforeSignedAt
+    val beforeSigned = beforeSignedAt != null
+
     val scope = rememberCoroutineScope()
     var showEditWarning by remember { mutableStateOf(false) }
     var showSignDialog by remember { mutableStateOf(false) }
+    var showReopenConfirm by remember { mutableStateOf(false) }
     var justCompleted by remember { mutableStateOf(false) }
+
+    // Hvilken del signeringsdialogen gjelder
+    var signPhase by remember { mutableStateOf(ChecklistPhase.BEFORE) }
+
+    // Navnet på den som signerte før vakta, til overskriften
+    val users by repo.users().collectAsState(emptyList())
+    val beforeSignedByName = run?.beforeUserId?.let { id ->
+        users.firstOrNull { it.id == id }?.name
+    }
 
     var saveError by remember { mutableStateOf<String?>(null) }
 
@@ -183,48 +212,122 @@ fun ChecklistRunScreen(
                     }
                 }
 
-                item {
-                    Text("UTSTYR", style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                // ---------- Del 1: før vakt ----------
 
-                items(inFixedOrder(items), key = { it.id }) { item ->
-                    ChecklistItemRow(
-                        item = item,
-                        response = responseByItem[item.id],
-                        hasEarlierDeficiency = item.id in earlierDeficiencyIds,
-                        onAnswer = { result, comment, reading -> answer(item, result, comment, reading) },
+                item {
+                    PhaseHeader(
+                        title = if (hasAfterPhase) "FØR VAKT" else "UTSTYR",
+                        answered = beforeAnswered,
+                        total = beforeAll.size,
+                        signedAt = beforeSignedAt,
+                        signedByName = beforeSignedByName,
+                        onReopen = if (beforeSigned) {
+                            { showReopenConfirm = true }
+                        } else null,
                     )
                 }
 
-                items(bags, key = { it.id }) { bag ->
-                    BagCard(
-                        repo = repo,
-                        bag = bag,
-                        responseByItem = responseByItem,
-                        earlierDeficiencyIds = earlierDeficiencyIds.toSet(),
-                        onItemsChange = { list -> bagItems = bagItems + (bag.id to list) },
-                        onAnswer = { item, result, comment, reading -> answer(item, result, comment, reading) },
-                    )
-                }
+                if (!beforeSigned) {
+                    items(inFixedOrder(beforeItems), key = { it.id }) { item ->
+                        ChecklistItemRow(
+                            item = item,
+                            response = responseByItem[item.id],
+                            hasEarlierDeficiency = item.id in earlierDeficiencyIds,
+                            onAnswer = { result, comment, reading -> answer(item, result, comment, reading) },
+                        )
+                    }
 
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Button(
-                            onClick = { showSignDialog = true },
-                            enabled = allAnswered,
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                        ) { Text("Signer og fullfør") }
-                        if (!allAnswered) {
-                            Text(
-                                "Du må svare på alle punkter før du kan signere.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                    items(bags, key = { it.id }) { bag ->
+                        BagCard(
+                            repo = repo,
+                            bag = bag,
+                            responseByItem = responseByItem,
+                            earlierDeficiencyIds = earlierDeficiencyIds.toSet(),
+                            onItemsChange = { list -> bagItems = bagItems + (bag.id to list) },
+                            onAnswer = { item, result, comment, reading -> answer(item, result, comment, reading) },
+                        )
+                    }
+
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Button(
+                                onClick = {
+                                    signPhase = if (hasAfterPhase) ChecklistPhase.BEFORE
+                                    else ChecklistPhase.AFTER
+                                    showSignDialog = true
+                                },
+                                enabled = if (hasAfterPhase) beforeComplete else allAnswered,
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                            ) {
+                                Text(if (hasAfterPhase) "Signer før vakt" else "Signer og fullfør")
+                            }
+                            if (if (hasAfterPhase) !beforeComplete else !allAnswered) {
+                                Text(
+                                    "Du må svare på alle punkter før du kan signere.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
-                        Spacer(Modifier.heightIn(min = 16.dp))
                     }
                 }
+
+                // ---------- Del 2: etter vakt ----------
+
+                if (hasAfterPhase) {
+                    item {
+                        PhaseHeader(
+                            title = "ETTER VAKT",
+                            answered = afterAnswered,
+                            total = afterItems.size,
+                            signedAt = null,
+                            signedByName = null,
+                            onReopen = null,
+                            hint = if (beforeSigned) {
+                                "Fylles ut når vakta er ferdig."
+                            } else {
+                                "Gjøres ved vaktslutt – etter at før-kontrollen er signert."
+                            },
+                        )
+                    }
+
+                    items(inFixedOrder(afterItems), key = { it.id }) { item ->
+                        ChecklistItemRow(
+                            item = item,
+                            response = responseByItem[item.id],
+                            hasEarlierDeficiency = item.id in earlierDeficiencyIds,
+                            onAnswer = { result, comment, reading -> answer(item, result, comment, reading) },
+                        )
+                    }
+
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Button(
+                                onClick = {
+                                    signPhase = ChecklistPhase.AFTER
+                                    showSignDialog = true
+                                },
+                                enabled = beforeSigned && allAnswered,
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                            ) { Text("Signer og avslutt vakt") }
+                            if (!beforeSigned) {
+                                Text(
+                                    "Før-kontrollen må signeres først.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            } else if (!allAnswered) {
+                                Text(
+                                    "Du må svare på alle punkter før du kan avslutte vakta.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item { Spacer(Modifier.heightIn(min = 16.dp)) }
             }
         }
     }
@@ -253,10 +356,46 @@ fun ChecklistRunScreen(
         )
     }
 
+    if (showReopenConfirm) {
+        AlertDialog(
+            onDismissRequest = { showReopenConfirm = false },
+            title = { Text("Gjenåpne før-kontrollen?") },
+            text = {
+                Text(
+                    "Signaturen fjernes, og du kan endre svarene. " +
+                        "Før-kontrollen må signeres på nytt før vakta kan avsluttes."
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { showReopenConfirm = false }) { Text("Avbryt") }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val r = run
+                    showReopenConfirm = false
+                    if (r != null) {
+                        scope.launch {
+                            try {
+                                repo.reopenBeforeShift(r.id)
+                                run = repo.startOrResumeRun(r.templateId, r.ambulanceId)
+                            } catch (e: Exception) {
+                                saveError = e.message ?: "Kunne ikke gjenåpne"
+                            }
+                        }
+                    }
+                }) { Text("Gjenåpne") }
+            },
+        )
+    }
+
     if (showSignDialog) {
+        val signingBefore = signPhase == ChecklistPhase.BEFORE
+        // Vis bare avvikene fra den delen som faktisk signeres
+        val relevantItems = if (signingBefore) beforeAll else allItems
         SignDialog(
             repo = repo,
-            deficiencies = allItems.mapNotNull { item ->
+            title = if (signingBefore) "Signer før vakt" else "Signer og avslutt vakt",
+            deficiencies = relevantItems.mapNotNull { item ->
                 val response = responseByItem[item.id] ?: return@mapNotNull null
                 if (response.result == "JA") null
                 else Triple(item.title, resultLabel(response.result), response.comment)
@@ -268,6 +407,12 @@ fun ChecklistRunScreen(
                 try {
                     // Lokal lagring er det som teller – signaturen er gyldig
                     // i det den ligger i SQLite, uavhengig av dekning
+                    if (signingBefore) {
+                        repo.signBeforeShift(r.id, userId)
+                        run = repo.startOrResumeRun(t.id, r.ambulanceId)
+                        onSyncRequest?.invoke()
+                        return@SignDialog true
+                    }
                     repo.completeRun(r.id, userId, null)
                     justCompleted = true
                     run = repo.startOrResumeRun(t.id, r.ambulanceId)
@@ -283,6 +428,72 @@ fun ChecklistRunScreen(
                 }
             },
         )
+    }
+}
+
+/**
+ * Overskrift for en fase, med egen fremdrift.
+ *
+ * Er fasen signert, erstattes punktene av hvem som signerte og når – slik at
+ * mannskapet ser at den delen er unnagjort og ikke tror de må begynne på nytt.
+ */
+@Composable
+private fun PhaseHeader(
+    title: String,
+    answered: Int,
+    total: Int,
+    signedAt: Long?,
+    signedByName: String?,
+    onReopen: (() -> Unit)?,
+    hint: String? = null,
+) {
+    Column(
+        Modifier.fillMaxWidth().padding(top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                title,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            if (signedAt != null) {
+                ResultBadge("SIGNERT", RkGreen, Icons.Default.CheckCircle)
+            } else if (total > 0) {
+                Text(
+                    "$answered av $total",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        if (signedAt != null) {
+            Text(
+                buildString {
+                    append("Signert ")
+                    append(formatMillis(signedAt))
+                    if (signedByName != null) append(" av $signedByName")
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (onReopen != null) {
+                TextButton(onClick = onReopen, modifier = Modifier.heightIn(min = 44.dp)) {
+                    Icon(Icons.Default.Edit, null, Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Gjenåpne og endre")
+                }
+            }
+        } else if (hint != null) {
+            Text(
+                hint,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -520,6 +731,8 @@ fun SignDialog(
     deficiencies: List<Triple<String, String, String?>>,
     onDismiss: () -> Unit,
     onSign: suspend (String) -> Boolean,
+    // Sier hvilken del som signeres, så mannskapet vet hva de bekrefter
+    title: String = "Signer sjekkliste",
 ) {
     val users by repo.users().collectAsState(emptyList())
     var crewId by remember { mutableStateOf("") }
@@ -529,7 +742,7 @@ fun SignDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Signer sjekkliste") },
+        title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (deficiencies.isEmpty()) {

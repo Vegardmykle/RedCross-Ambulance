@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MedicalServices
+import androidx.compose.material.icons.filled.PendingActions
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.ViewWeek
@@ -71,6 +72,11 @@ fun DashboardScreen(
 
     val selection = LocalAmbulanceSelection.current
     val ambulance = ambulances.firstOrNull { it.id == selection.selectedId }
+
+    // Vakter der før-kontrollen er signert, men avslutningen aldri ble gjort.
+    // Uten dette ville en glemt avslutning bare forsvunnet i stillhet.
+    val awaitingClosure by repo.runsAwaitingClosure().collectAsState(emptyList())
+    val openShift = awaitingClosure.firstOrNull { it.ambulanceId == ambulance?.id }
     val typeById = templates.associate { it.id to it.type }
 
     fun latestCompleted(type: String): Long? = runs
@@ -96,6 +102,7 @@ fun DashboardScreen(
             onOpen = onOpen,
             onGoToArchive = onGoToArchive,
             openLink = { url -> runCatching { uriHandler.openUri(normalizeUrl(url)) } },
+            openShift = openShift,
         )
         return
     }
@@ -112,6 +119,8 @@ fun DashboardScreen(
                 selected = ambulance,
                 onSelect = selection.select,
             )
+
+            OpenShiftCard(openShift) { onOpen(Screen.Run("DAILY")) }
 
             OutlinedCard {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -269,6 +278,7 @@ private fun PhoneDashboard(
     onOpen: (Screen) -> Unit,
     onGoToArchive: () -> Unit,
     openLink: (String) -> Unit,
+    openShift: database.GetRunsAwaitingClosure? = null,
 ) {
     val callSign = selected?.callSign
     Column(
@@ -283,6 +293,8 @@ private fun PhoneDashboard(
             selected = selected,
             onSelect = onSelectAmbulance,
         )
+
+        OpenShiftCard(openShift) { onOpen(Screen.Run("DAILY")) }
 
         // Dagens gjøremål-kort (hvitt kort med kapsel-badge, som iOS)
         PhoneCard {
@@ -370,6 +382,52 @@ private fun PhoneDashboard(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Vises når før-kontrollen er signert, men vakta aldri ble avsluttet.
+ *
+ * Neste mannskap skal kunne se at forrige vakt ikke er lukket – ellers
+ * forsvinner det i stillhet, og ingen vet om bilen ble ryddet og oksygenet
+ * skrudd av.
+ */
+@Composable
+private fun OpenShiftCard(
+    run: database.GetRunsAwaitingClosure?,
+    onOpen: () -> Unit,
+) {
+    if (run == null) return
+    OutlinedCard(onClick = onOpen) {
+        Column(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.PendingActions, null, tint = RkOrange)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Vakt ikke avsluttet",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowForward, null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                buildString {
+                    append("Før-kontrollen ble signert ")
+                    append(formatMillis(run.beforeSignedAt ?: run.createdAt))
+                    run.beforeSignedByName?.let { append(" av $it") }
+                    append(". Etter-vakt-kontrollen gjenstår.")
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

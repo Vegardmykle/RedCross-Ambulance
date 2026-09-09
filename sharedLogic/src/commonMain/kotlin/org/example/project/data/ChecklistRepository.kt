@@ -2,6 +2,7 @@ package org.example.project.data
 
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
+import app.cash.sqldelight.coroutines.mapToOne
 import database.Ambulance
 import database.AppLink
 import database.ChecklistItem
@@ -12,19 +13,20 @@ import database.Document
 import database.GetOpenDeficiencies
 import database.GetRecentRuns
 import database.GetResponsesWithItemsForRun
+import database.GetRunsAwaitingClosure
 import database.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.example.project.db.AppDatabase
+import org.example.project.model.ChecklistPhase
 import org.example.project.model.ItemResult
 import org.example.project.model.OpenDeficiency
 import org.example.project.model.TemplateType
 import kotlin.coroutines.cancellation.CancellationException
 import org.example.project.util.currentTimeMillis
 import org.example.project.util.randomId
-import org.example.project.util.startOfTodayMillis
 
 /**
  * Alt UI-laget trenger for å lese og skrive sjekklister.
@@ -32,6 +34,17 @@ import org.example.project.util.startOfTodayMillis
  * skriving er suspend-funksjoner.
  */
 class ChecklistRepository(private val db: AppDatabase) {
+
+    companion object {
+        /**
+         * Hvor lenge en påbegynt kontroll regnes som en pågående vakt.
+         *
+         * 16 timer dekker døgnvakter og nattevakter med margin, uten at en
+         * glemt kontroll blir stående i dagevis. Grensa er bevisst en varighet
+         * og ikke et døgnskille – nattevakter krysser midnatt.
+         */
+        const val SHIFT_TIMEOUT_MILLIS: Long = 16 * 60 * 60 * 1000
+    }
 
     // ---------- Maler ----------
 
@@ -112,6 +125,7 @@ class ChecklistRepository(private val db: AppDatabase) {
         unit: String? = null,
         minValue: Double? = null,
         maxValue: Double? = null,
+        phase: ChecklistPhase = ChecklistPhase.BEFORE,
     ): String = withContext(Dispatchers.Default) {
         val id = randomId()
         val next = (db.checklistItemQueries.maxSortOrderForTemplate(templateId)
@@ -119,7 +133,7 @@ class ChecklistRepository(private val db: AppDatabase) {
         db.checklistItemQueries.insertItem(
             id, templateId, title, description,
             if (requiresValue) 1L else 0L, unit, minValue, maxValue, next,
-            currentTimeMillis(),
+            phase.db, currentTimeMillis(),
         )
         id
     }
@@ -133,10 +147,11 @@ class ChecklistRepository(private val db: AppDatabase) {
         unit: String? = null,
         minValue: Double? = null,
         maxValue: Double? = null,
+        phase: ChecklistPhase = ChecklistPhase.BEFORE,
     ) = withContext(Dispatchers.Default) {
         db.checklistItemQueries.updateItem(
             id, title, description,
-            if (requiresValue) 1L else 0L, unit, minValue, maxValue,
+            if (requiresValue) 1L else 0L, unit, minValue, maxValue, phase.db,
             currentTimeMillis(),
         )
     }
@@ -158,17 +173,47 @@ class ChecklistRepository(private val db: AppDatabase) {
     // ---------- Kjøringer ----------
 
     /**
-     * Gjenbruker åpen kjøring fra samme dag for samme liste+ambulanse.
-     * En usignert kjøring fra en tidligere dag bevares som EXPIRED
-     * (svar og avvik beholdes), og en ny kjøring startes for dagen.
+     * Gjenbruker åpen kontroll for samme liste og ambulanse.
+     *
+     * Grensa er vaktlengde, ikke døgnskille: nattevakter krysser midnatt, og
+     * en døgnbasert regel ville avbrutt dem midtveis. En kontroll som har stått
+     * åpen lenger enn [SHIFT_TIMEOUT_MILLIS] regnes som forlatt – den bevares
+     * som EXPIRED hvis noe er besvart, ellers slettes den.
      */
     suspend fun startOrResumeRun(templateId: String, ambulanceId: String): ChecklistRun =
         withContext(Dispatchers.Default) {
             val open = db.checklistRunQueries.getOpenRun(templateId, ambulanceId).executeAsOneOrNull()
             if (open != null) {
-                if (open.createdAt >= startOfTodayMillis()) return@withContext open
+                val age = currentTimeMillis() - open.createdAt
+                if (age < SHIFT_TIMEOUT_MILLIS) return@withContext open
                 // En gammel kontroll uten et eneste svar er ingen dokumentasjon –
                 // den slettes i stedet for å bevares som utløpt
+                val answered = db.checklistRunQueries
+                    .countResponsesForRunId(open.id).executeAsOne()
+                if (answered == 0L) {
+                    db.checklistRunQueries.deleteRun(open.id)
+                } else {
+                    db.checklistRunQueries.expireRun(open.id, currentTimeMillis())
+                }
+            }
+            val id = randomId()
+            db.checklistRunQueries.insertRun(id, templateId, ambulanceId, currentTimeMillis())
+            db.checklistRunQueries.getRunById(id).executeAsOne()
+        }
+
+    /**
+     * Starter en ny vakt selv om forrige aldri ble avsluttet.
+     *
+     * En glemt avslutning skal ikke sperre neste vakt fra å kontrollere bilen.
+     * Den gamle kontrollen bevares som utløpt hvis noe er besvart – svarene er
+     * dokumentasjon på hva som faktisk ble sjekket – og blir liggende som
+     * påminnelse om at avslutningen mangler.
+     */
+    @Throws(CancellationException::class)
+    suspend fun startNewRun(templateId: String, ambulanceId: String): ChecklistRun =
+        withContext(Dispatchers.Default) {
+            val open = db.checklistRunQueries.getOpenRun(templateId, ambulanceId).executeAsOneOrNull()
+            if (open != null) {
                 val answered = db.checklistRunQueries
                     .countResponsesForRunId(open.id).executeAsOne()
                 if (answered == 0L) {
@@ -216,7 +261,8 @@ class ChecklistRepository(private val db: AppDatabase) {
             if ((min != null && value < min) || (max != null && value > max)) {
                 finalResult = ItemResult.MANGELFULL
                 if (finalComment.isNullOrBlank()) {
-                    val unit = item?.unit.orEmpty()
+                    // Vi er inne i grensen er overskredet-grenen, så item finnes
+                    val unit = item.unit.orEmpty()
                     finalComment = buildString {
                         append("Avlest $reading $unit er utenfor grense")
                         if (min != null) append(" (min ${fmt(min)})")
@@ -249,7 +295,75 @@ class ChecklistRepository(private val db: AppDatabase) {
     private fun fmt(value: Double): String =
         if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
 
-    /** Krever mannskaps-ID (User.id) for å lukke lista. Kan bare lukkes én gang. */
+    /**
+     * Signerer før-vakt-delen. Kontrollen forblir åpen – vakta er ikke over
+     * før avslutningen også er signert.
+     *
+     * Krever at alle før-punktene er besvart, men rører ikke etter-punktene.
+     */
+    @Throws(IllegalStateException::class, IllegalArgumentException::class, CancellationException::class)
+    suspend fun signBeforeShift(runId: String, userId: String) =
+        withContext(Dispatchers.Default) {
+            require(userId.isNotBlank()) { "Mannskaps-ID er påkrevd" }
+            requireNotNull(db.userQueries.getUserById(userId).executeAsOneOrNull()) {
+                "Ukjent mannskaps-ID"
+            }
+            val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
+            check(run != null && run.status == "IN_PROGRESS") {
+                "Kontrollen er allerede lukket"
+            }
+            check(run.beforeSignedAt == null) { "Før-vakt-delen er allerede signert" }
+
+            val expected = db.checklistItemQueries
+                .countItemsForTemplateTreeInPhase(run.templateId, ChecklistPhase.BEFORE.db)
+                .executeAsOne()
+            check(expected > 0) { "Lista har ingen punkter før vakt" }
+
+            val answered = db.checklistResponseQueries
+                .countResponsesForRunInPhase(runId, ChecklistPhase.BEFORE.db)
+                .executeAsOne()
+            check(answered >= expected) {
+                "Alle punkter før vakt må besvares før signering ($answered av $expected)"
+            }
+
+            db.checklistRunQueries.signBeforeShift(runId, currentTimeMillis(), userId)
+        }
+
+    /**
+     * Gjenåpner før-vakt-delen så mannskapet kan korrigere den underveis.
+     * Mulig helt til kontrollen avsluttes; etter det er alt låst.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class)
+    suspend fun reopenBeforeShift(runId: String) = withContext(Dispatchers.Default) {
+        val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
+        check(run != null && run.status == "IN_PROGRESS") {
+            "Kontrollen er lukket og kan ikke endres"
+        }
+        db.checklistRunQueries.reopenBeforeShift(runId, currentTimeMillis())
+    }
+
+    /**
+     * Om lista har egne avslutningspunkter, og dermed skal signeres i to trinn.
+     * Ukentlige og månedlige kontroller har det ikke.
+     */
+    fun hasAfterPhase(templateId: String): Flow<Boolean> =
+        db.checklistItemQueries
+            .countItemsForTemplateTreeInPhase(templateId, ChecklistPhase.AFTER.db)
+            .asFlow().mapToOne(Dispatchers.Default)
+            .map { it > 0 }
+
+    /** Vakter der før-delen er signert, men avslutningen mangler. */
+    fun runsAwaitingClosure(): Flow<List<GetRunsAwaitingClosure>> =
+        db.checklistRunQueries.getRunsAwaitingClosure()
+            .asFlow().mapToList(Dispatchers.Default)
+
+    /**
+     * Avslutter vakta med signatur på etter-vakt-delen.
+     *
+     * Kan signeres av et annet mannskap enn den som signerte før vakta –
+     * vaktbytte, sykdom og hjemreise skjer, og alternativet ville vært at
+     * kontrollen ble stående åpen.
+     */
     @Throws(IllegalStateException::class, IllegalArgumentException::class, CancellationException::class)
     suspend fun completeRun(runId: String, userId: String, comment: String? = null) =
         withContext(Dispatchers.Default) {
@@ -257,6 +371,17 @@ class ChecklistRepository(private val db: AppDatabase) {
             val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
             check(run != null && run.status == "IN_PROGRESS") {
                 "Sjekklisten er allerede lukket"
+            }
+            // To-fase-signering gjelder bare lister som faktisk har
+            // avslutningspunkter. Ukentlige og månedlige kontroller har det
+            // ikke, og skal fortsatt kunne signeres én gang.
+            val afterCount = db.checklistItemQueries
+                .countItemsForTemplateTreeInPhase(run.templateId, ChecklistPhase.AFTER.db)
+                .executeAsOne()
+            if (afterCount > 0) {
+                check(run.beforeSignedAt != null) {
+                    "Før-vakt-delen må signeres før vakta kan avsluttes"
+                }
             }
             val expected = db.checklistItemQueries
                 .countItemsForTemplateTree(run.templateId).executeAsOne()

@@ -1,0 +1,20 @@
+-- Versjon 1 → 2: sjekklista deles i to faser.
+--
+-- Bakgrunn: punkter som hører til avslutningen av vakta (oksygen skrudd av,
+-- vask, km notert) lå blandet sammen med punktene som skal kontrolleres før
+-- vakta. Mannskapet opplevde at de måtte begynne på nytt etter vakta, og det
+-- fantes ingen måte å se at en vakt var påbegynt men ikke avsluttet.
+--
+-- Merk: `phase` er uten CHECK-betingelse med vilje. SQLite tillater ikke
+-- pålitelig å legge til en kolonne med CHECK via ALTER TABLE på tvers av
+-- versjoner, og en tabellombygging ville vært unødvendig risikabel på
+-- enheter som står ute i bilene. Gyldige verdier håndheves i Kotlin gjennom
+-- ChecklistPhase-enumen, som er den eneste som skriver til feltet.
+
+ALTER TABLE ChecklistItem ADD COLUMN phase TEXT NOT NULL DEFAULT 'BEFORE';
+
+-- Signaturen for før-vakt-delen. Den endelige signaturen ligger fortsatt i
+-- completedAt/userId, slik at status-kolonnen og CHECK-betingelsen på den
+-- kan stå urørt: en vakt er IN_PROGRESS til hele kontrollen er avsluttet.
+ALTER TABLE ChecklistRun ADD COLUMN beforeSignedAt INTEGER;
+ALTER TABLE ChecklistRun ADD COLUMN beforeUserId TEXT;

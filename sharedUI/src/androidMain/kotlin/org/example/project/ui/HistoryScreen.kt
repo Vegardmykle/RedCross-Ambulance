@@ -52,8 +52,15 @@ internal fun HistoryRunCard(run: GetRecentRuns, onClick: () -> Unit) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            // Er lista signert i to trinn, må begge signaturene fram – ellers
+            // forsvinner hvem som faktisk kontrollerte bilen før vakta
+            run.beforeSignedByName?.let {
+                Text("Før vakt: $it", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             run.signedByName?.let {
-                Text("Signert av $it", style = MaterialTheme.typography.labelSmall,
+                val label = if (run.beforeSignedByName != null) "Etter vakt" else "Signert av"
+                Text("$label: $it", style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             DeviationLabel(run)
@@ -151,7 +158,19 @@ fun RunDetailScreen(
                             verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("Ambulanse: ${run.callSign}")
                             Text("Dato: ${formatMillis(run.completedAt ?: run.createdAt)}")
-                            run.signedByName?.let { Text("Signert av: $it") }
+                            // Begge signaturene med tidspunkt, så det er sporbart
+                            // hvem som kontrollerte bilen når
+                            run.beforeSignedAt?.let { signedAt ->
+                                Text(
+                                    "Før vakt: ${run.beforeSignedByName ?: "ukjent"}" +
+                                        " · ${formatMillis(signedAt)}"
+                                )
+                            }
+                            run.signedByName?.let {
+                                val label = if (run.beforeSignedAt != null) "Etter vakt" else "Signert av"
+                                val time = run.completedAt?.let { t -> " · ${formatMillis(t)}" } ?: ""
+                                Text("$label: $it$time")
+                            }
                             run.comment?.takeIf { it.isNotEmpty() }?.let { Text("Kommentar: $it") }
                         }
                     }

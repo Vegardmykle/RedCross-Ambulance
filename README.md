@@ -72,6 +72,12 @@ Krever JDK 17, Android Studio (nyere versjon med AGP 9) og Xcode.
 (FirebaseCore, FirebaseAuth, FirebaseFirestore) hentes via Swift Package
 Manager ved første bygg.
 
+Target-et må ha **Keychain Sharing** under Signing & Capabilities. Uten den
+får ikke Firebase Auth lagret tokenet sitt, og innloggingen feiler med den
+lite hjelpsomme meldingen `ERROR_INTERNAL_ERROR` (kode 17999) – som ser ut
+som en nettverksfeil, men ikke er det. Symptomet er at synkroniseringen
+stopper før `[Sync] innlogget som …` i loggen.
+
 **Firebase**: hver utvikler/utrulling trenger `google-services.json`
 (androidApp/) og `GoogleService-Info.plist` (iosApp/) fra
 Firebase-konsollen. Begge er bevisst utelatt fra git. Firestore må være

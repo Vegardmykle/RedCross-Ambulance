@@ -1,6 +1,29 @@
-Beta – ny versjon
+Versjon 1.3 – sjekklista er delt i før og etter vakt
 
-Endringer i denne versjonen:
-- lagt til støtte for fargeblinde
+Nytt i denne versjonen:
 
-Vegard
+- Den daglige sjekklista er nå delt i to: "Før vakt" og "Etter vakt".
+  Punktene som hører til avslutningen ligger for seg selv nederst.
+
+- Vakta signeres to ganger. Du signerer før-kontrollen ved vaktstart.
+  Da legger den seg sammen som en grønn linje med navn og tidspunkt, og
+  du ser bare avslutningspunktene som gjenstår.
+
+- Dashbordet varsler "Vakt ikke avsluttet" hvis noen har signert
+  før-kontrollen uten å avslutte vakta. Neste mannskap ser det med en gang.
+
+- Avslutningen kan signeres av et annet mannskap enn den som startet
+  vakta. Vaktbytte skal ikke gjøre at kontrollen blir stående åpen.
+
+- Har du oppdaget noe i etterkant, kan før-kontrollen gjenåpnes og endres
+  helt til vakta avsluttes.
+
+- Ukentlig og månedlig sjekkliste er uendret – de signeres én gang som før.
+
+Andre forbedringer:
+
+- Arkivet viser hvem som signerte før og etter vakta, med tidspunkt.
+- Punktene står nå i fast rekkefølge. Tidligere flyttet de seg nedover
+  når du svarte ja, slik at lista kunne hoppe under fingeren.
+
+Meld fra om feil til Vegard.

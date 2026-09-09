@@ -84,8 +84,19 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
         println("[Sync] $message")
     }
 
+    /**
+     * Anonym innlogging feiler av og til forbigående ved appstart – særlig på
+     * iOS, der nøkkelringen ikke alltid er klar med én gang. Ett nytt forsøk
+     * er nok i praksis, og alternativet er at mannskapet ser en feilmelding
+     * for noe som løser seg selv.
+     */
     private suspend fun ensureSignedIn() {
-        if (Firebase.auth.currentUser == null) {
+        if (Firebase.auth.currentUser != null) return
+        try {
+            Firebase.auth.signInAnonymously()
+        } catch (first: Exception) {
+            log("innlogging feilet, prøver én gang til: ${first.message}")
+            kotlinx.coroutines.delay(1000)
             Firebase.auth.signInAnonymously()
         }
     }

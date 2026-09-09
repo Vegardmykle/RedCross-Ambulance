@@ -64,6 +64,11 @@ struct ChecklistRunScreen: View {
     @State private var justCompleted = false
     @State private var showEditWarning = false
     @State private var navigateToEdit = false
+    @State private var showReopenConfirm = false
+    @State private var crew: [User] = []
+
+    /// Hvilken del signeringsarket gjelder
+    @State private var signPhase: ChecklistPhase = .before
 
     private var allItems: [ChecklistItem] {
         items + bagItems.values.flatMap { $0 }
@@ -77,7 +82,63 @@ struct ChecklistRunScreen: View {
         !allItems.isEmpty && answeredCount == allItems.count
     }
 
+    // MARK: - To faser
+    //
+    // Vakta kontrolleres i to trinn: utstyret før vakt, avslutningen etterpå.
+    // Har lista ingen etter-punkter (ukentlig, månedlig) beholdes én signatur.
+
+    private func inPhase(_ list: [ChecklistItem], _ phase: ChecklistPhase) -> [ChecklistItem] {
+        list.filter { ChecklistPhase.companion.fromDb(value: $0.phase) == phase }
+    }
+
+    private var beforeItems: [ChecklistItem] { inPhase(items, .before) }
+    private var afterItems: [ChecklistItem] { inPhase(allItems, .after) }
+    private var beforeAll: [ChecklistItem] { inPhase(allItems, .before) }
+
+    private var hasAfterPhase: Bool { !afterItems.isEmpty }
+
+    private var beforeAnswered: Int {
+        beforeAll.filter { responses[$0.id] != nil }.count
+    }
+
+    private var beforeComplete: Bool {
+        !beforeAll.isEmpty && beforeAnswered == beforeAll.count
+    }
+
+    private var afterAnswered: Int {
+        afterItems.filter { responses[$0.id] != nil }.count
+    }
+
+    private var beforeSignedAt: Int64? { run?.beforeSignedAt?.int64Value }
+    private var beforeSigned: Bool { beforeSignedAt != nil }
+
+    private var beforeSignedByName: String? {
+        guard let id = run?.beforeUserId else { return nil }
+        return crew.first { $0.id == id }?.name
+    }
+
+    // Nøklene regnes ut her i stedet for inne i modifikator-kjeden.
+    // Strenginterpolasjon midt i en lang kjede får typesjekkeren i Swift
+    // til å gi opp.
+    private var templateKey: String { template?.id ?? "" }
+    private var runKey: String { run?.id ?? "" }
+    private var runStartKey: String { "\(templateKey)|\(selectedAmbulanceId)" }
+
+    // Delt i to: presentasjon og datainnhenting. Samlet i én kjede ble
+    // uttrykket for komplekst til å typesjekkes.
     var body: some View {
+        presentedList
+            .task { await observeAmbulances() }
+            .task { await observeTemplates() }
+            .task { await observeCrew() }
+            .task(id: runStartKey) { await startRunIfReady() }
+            .task(id: templateKey) { await observeItems() }
+            .task(id: templateKey) { await observeBags() }
+            .task(id: runKey) { await observeResponses() }
+            .task(id: runKey) { await observeEarlierDeficiencies() }
+    }
+
+    private var presentedList: some View {
         checklistList
             .navigationTitle(template?.name ?? "Sjekkliste")
             .toolbar { editToolbarItem }
@@ -89,27 +150,46 @@ struct ChecklistRunScreen: View {
             }
             .navigationDestination(isPresented: $navigateToEdit) { editDestination }
             .sheet(isPresented: $showSignSheet) { signSheet }
-            .task { await observeAmbulances() }
-            .task { await observeTemplates() }
-            .task(id: "\(template?.id ?? "")|\(selectedAmbulanceId)") { await startRunIfReady() }
-            .task(id: template?.id ?? "") { await observeItems() }
-            .task(id: template?.id ?? "") { await observeBags() }
-            .task(id: run?.id ?? "") { await observeResponses() }
-            .task(id: run?.id ?? "") { await observeEarlierDeficiencies() }
+            .alert("Gjenåpne før-kontrollen?", isPresented: $showReopenConfirm) {
+                Button("Avbryt", role: .cancel) {}
+                Button("Gjenåpne") { Task { await reopenBefore() } }
+            } message: {
+                Text("Signaturen fjernes, og du kan endre svarene. Før-kontrollen må signeres på nytt før vakta kan avsluttes.")
+            }
     }
 
+    // Delt opp i småbiter fordi typesjekkeren i Swift gir opp på lange
+    // view-uttrykk med forgreninger
     private var checklistList: some View {
         List {
             progressSection
+            beforePhaseContent
+            afterPhaseContent
+        }
+    }
+
+    @ViewBuilder
+    private var beforePhaseContent: some View {
+        if beforeSigned {
+            beforeSignedSummary
+        } else {
             equipmentSection
             bagSectionsView
-            signSection
+            beforeSignSection
+        }
+    }
+
+    @ViewBuilder
+    private var afterPhaseContent: some View {
+        if hasAfterPhase {
+            afterSection
+            afterSignSection
         }
     }
 
     private var equipmentSection: some View {
-        Section("Utstyr") {
-            ForEach(inFixedOrder(items), id: \.id) { item in
+        Section {
+            ForEach(inFixedOrder(beforeItems), id: \.id) { item in
                 ChecklistItemRow(
                     item: item,
                     response: responses[item.id],
@@ -119,7 +199,78 @@ struct ChecklistRunScreen: View {
                     }
                 )
             }
+        } header: {
+            HStack {
+                Text(hasAfterPhase ? "Før vakt" : "Utstyr")
+                Spacer()
+                Text("\(beforeAnswered) av \(beforeAll.count)")
+                    .foregroundStyle(.secondary)
+            }
         }
+    }
+
+    /// Når før-delen er signert erstattes punktene av hvem som signerte og når.
+    /// Uten dette møter mannskapet en tilsynelatende tom liste etter vakta og
+    /// tror de må begynne på nytt.
+    private var beforeSignedSummary: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Før vakt signert", systemImage: "checkmark.seal.fill")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.green)
+
+                if let signedAt = beforeSignedAt {
+                    Text(signatureText(at: signedAt, by: beforeSignedByName))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Button {
+                    showReopenConfirm = true
+                } label: {
+                    Label("Gjenåpne og endre", systemImage: "pencil")
+                        .font(.caption)
+                }
+                .frame(minHeight: 44)
+            }
+        }
+    }
+
+    private var afterSection: some View {
+        Section {
+            ForEach(inFixedOrder(afterItems), id: \.id) { item in
+                ChecklistItemRow(
+                    item: item,
+                    response: responses[item.id],
+                    hasEarlierDeficiency: earlierDeficiencyItemIds.contains(item.id),
+                    onAnswer: { choice, comment, reading in
+                        await answer(item: item, choice: choice, comment: comment, reading: reading)
+                    }
+                )
+            }
+        } header: {
+            HStack {
+                Text("Etter vakt")
+                Spacer()
+                Text("\(afterAnswered) av \(afterItems.count)")
+                    .foregroundStyle(.secondary)
+            }
+        } footer: {
+            Text(beforeSigned
+                 ? "Fylles ut når vakta er ferdig."
+                 : "Gjøres ved vaktslutt – etter at før-kontrollen er signert.")
+        }
+    }
+
+    private func signatureText(at millis: Int64, by name: String?) -> String {
+        let date = Date(timeIntervalSince1970: Double(millis) / 1000)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "nb_NO")
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        let time = formatter.string(from: date)
+        return name.map { "\(time) av \($0)" } ?? time
     }
 
     private var bagSectionsView: some View {
@@ -158,10 +309,42 @@ struct ChecklistRunScreen: View {
     }
 
     private var signSheet: some View {
-        SignSheetView(
-            deficiencies: deficiencies,
-            onSign: { userId in await complete(userId: userId) }
+        let signingBefore = signPhase == .before
+        return SignSheetView(
+            title: signingBefore ? "Signer før vakt" : "Signer og avslutt vakt",
+            // Vis bare avvikene fra den delen som faktisk signeres
+            deficiencies: signingBefore ? deficiencies(in: beforeAll) : deficiencies(in: allItems),
+            onSign: { userId in
+                signingBefore
+                    ? await signBefore(userId: userId)
+                    : await complete(userId: userId)
+            }
         )
+    }
+
+    private func signBefore(userId: String) async -> Bool {
+        guard let run, let template else { return false }
+        do {
+            try await repo.signBeforeShift(runId: run.id, userId: userId)
+            await loadRun(templateId: template.id)
+            // Synk i bakgrunnen – feiler stille uten dekning
+            Task { try? await AppDependencies.shared.syncService.syncAll() }
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func reopenBefore() async {
+        guard let run, let template else { return }
+        try? await repo.reopenBeforeShift(runId: run.id)
+        await loadRun(templateId: template.id)
+    }
+
+    private func observeCrew() async {
+        for await list in repo.users() {
+            crew = list
+        }
     }
 
     private func observeAmbulances() async {
@@ -230,20 +413,25 @@ struct ChecklistRunScreen: View {
         }
     }
 
-    private var signSection: some View {
-        Section {
+    private var beforeSignSection: some View {
+        let canSign = hasAfterPhase ? beforeComplete : allAnswered
+        return Section {
             Button {
+                signPhase = hasAfterPhase ? .before : .after
                 showSignSheet = true
             } label: {
-                Label("Signer og fullfør", systemImage: "signature")
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
-                    .foregroundStyle(allAnswered ? .white : .secondary)
+                Label(
+                    hasAfterPhase ? "Signer før vakt" : "Signer og fullfør",
+                    systemImage: "signature"
+                )
+                .fontWeight(.semibold)
+                .frame(maxWidth: .infinity)
+                .foregroundStyle(canSign ? .white : .secondary)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(!allAnswered)
+            .disabled(!canSign)
 
-            if !allAnswered {
+            if !canSign {
                 Text("Du må svare på alle punkter før du kan signere.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -252,8 +440,36 @@ struct ChecklistRunScreen: View {
         .listRowBackground(Color.clear)
     }
 
-    private var deficiencies: [DeficiencySummary] {
-        allItems.compactMap { item in
+    private var afterSignSection: some View {
+        let canSign = beforeSigned && allAnswered
+        return Section {
+            Button {
+                signPhase = .after
+                showSignSheet = true
+            } label: {
+                Label("Signer og avslutt vakt", systemImage: "signature")
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
+                    .foregroundStyle(canSign ? .white : .secondary)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!canSign)
+
+            if !beforeSigned {
+                Text("Før-kontrollen må signeres først.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if !allAnswered {
+                Text("Du må svare på alle punkter før du kan avslutte vakta.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .listRowBackground(Color.clear)
+    }
+
+    private func deficiencies(in list: [ChecklistItem]) -> [DeficiencySummary] {
+        list.compactMap { item in
             guard let response = responses[item.id], response.result != "JA" else { return nil }
             return DeficiencySummary(
                 id: item.id,
@@ -489,6 +705,8 @@ struct DeficiencySummary: Identifiable {
 }
 
 struct SignSheetView: View {
+    /// Sier hvilken del som signeres, så mannskapet vet hva de bekrefter
+    var title: String = "Signer sjekkliste"
     let deficiencies: [DeficiencySummary]
     let onSign: (String) async -> Bool
 
@@ -564,7 +782,7 @@ struct SignSheetView: View {
                 }
                 .listRowBackground(Color.clear)
             }
-            .navigationTitle("Signering")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

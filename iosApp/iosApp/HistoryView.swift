@@ -124,8 +124,17 @@ struct HistoryRow: View {
 
             deviationLabel
 
+            // Er lista signert i to trinn, må begge signaturene fram – ellers
+            // forsvinner hvem som faktisk kontrollerte bilen før vakta
+            if let before = run.beforeSignedByName {
+                Text("Før vakt: \(before)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             if let name = run.signedByName {
-                Text("Signert av \(name)")
+                Text(run.beforeSignedByName != nil
+                     ? "Etter vakt: \(name)"
+                     : "Signert av \(name)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

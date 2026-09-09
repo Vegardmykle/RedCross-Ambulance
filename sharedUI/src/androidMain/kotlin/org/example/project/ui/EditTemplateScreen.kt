@@ -32,6 +32,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -51,6 +54,7 @@ import database.ChecklistItem
 import database.ChecklistTemplate
 import kotlinx.coroutines.launch
 import org.example.project.data.ChecklistRepository
+import org.example.project.model.ChecklistPhase
 import org.example.project.model.TemplateType
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -259,7 +263,8 @@ private fun EditSection(
             onSave = { form ->
                 scope.launch {
                     repo.addItem(template.id, form.title, form.description,
-                        form.requiresValue, form.unit, form.minValue, form.maxValue)
+                        form.requiresValue, form.unit, form.minValue, form.maxValue,
+                        form.phase)
                 }
                 showAddDialog = false
             },
@@ -274,7 +279,8 @@ private fun EditSection(
             onSave = { form ->
                 scope.launch {
                     repo.updateItem(item.id, form.title, form.description,
-                        form.requiresValue, form.unit, form.minValue, form.maxValue)
+                        form.requiresValue, form.unit, form.minValue, form.maxValue,
+                        form.phase)
                 }
                 editingItem = null
             },
@@ -353,6 +359,10 @@ private fun EditSection(
 
 private fun itemSubtitle(item: ChecklistItem): String? {
     val parts = mutableListOf<String>()
+    // Etter-vakt vises eksplisitt; før-vakt er normalen og trenger ingen merking
+    if (ChecklistPhase.fromDb(item.phase) == ChecklistPhase.AFTER) {
+        parts.add("Etter vakt")
+    }
     item.description?.takeIf { it.isNotEmpty() }?.let { parts.add(it) }
     if (item.requiresValue != 0L) {
         var measure = "Måling"
@@ -368,6 +378,7 @@ data class ItemForm(
     val title: String,
     val description: String?,
     val requiresValue: Boolean,
+    val phase: ChecklistPhase,
     val unit: String?,
     val minValue: Double?,
     val maxValue: Double?,
@@ -383,6 +394,9 @@ private fun ItemFormDialog(
     var itemTitle by remember { mutableStateOf(existing?.title ?: "") }
     var description by remember { mutableStateOf(existing?.description ?: "") }
     var requiresValue by remember { mutableStateOf(existing?.requiresValue != 0L && existing != null) }
+    var phase by remember {
+        mutableStateOf(ChecklistPhase.fromDb(existing?.phase))
+    }
     var unit by remember { mutableStateOf(existing?.unit ?: "") }
     var minText by remember { mutableStateOf(existing?.minValue?.let(::fmtDouble) ?: "") }
     var maxText by remember { mutableStateOf(existing?.maxValue?.let(::fmtDouble) ?: "") }
@@ -396,6 +410,28 @@ private fun ItemFormDialog(
                     label = { Text("Tittel") }, placeholder = { Text("F.eks. Brannslukker") })
                 OutlinedTextField(value = description, onValueChange = { description = it },
                     label = { Text("Beskrivelse (valgfritt)") })
+
+                // Avgjør om punktet kontrolleres ved vaktstart eller vaktslutt.
+                // Har lista minst ett etter-punkt, deles den i to og signeres
+                // i to trinn.
+                Text(
+                    "NÅR KONTROLLERES DETTE?",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    ChecklistPhase.entries.forEachIndexed { index, option ->
+                        SegmentedButton(
+                            selected = phase == option,
+                            onClick = { phase = option },
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = index,
+                                count = ChecklistPhase.entries.size,
+                            ),
+                        ) { Text(option.label) }
+                    }
+                }
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Krever avlest verdi", modifier = Modifier.weight(1f))
                     Switch(checked = requiresValue, onCheckedChange = { requiresValue = it })
@@ -429,6 +465,7 @@ private fun ItemFormDialog(
                             title = itemTitle.trim(),
                             description = description.trim().ifEmpty { null },
                             requiresValue = requiresValue,
+                            phase = phase,
                             unit = if (requiresValue) unit.trim().ifEmpty { null } else null,
                             minValue = if (requiresValue) minText.toDoubleOrNull() else null,
                             maxValue = if (requiresValue) maxText.toDoubleOrNull() else null,

@@ -32,7 +32,7 @@ class MeasurementLimitsTest {
         assertEquals("150", response.reading, "Den avleste verdien må bevares som den ble skrevet")
         assertNotNull(response.comment)
         assertTrue(
-            response.comment!!.contains("180"),
+            response.comment.contains("180"),
             "Kommentaren bør oppgi grensa, var: ${response.comment}",
         )
     }

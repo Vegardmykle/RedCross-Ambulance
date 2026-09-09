@@ -7,6 +7,8 @@ struct DashboardView: View {
     @State private var ambulances: [Ambulance] = []
     @State private var templates: [ChecklistTemplate] = []
     @State private var links: [AppLink] = []
+    /// Vakter der før-kontrollen er signert, men avslutningen aldri ble gjort
+    @State private var awaitingClosure: [GetRunsAwaitingClosure] = []
     @AppStorage("selectedAmbulanceId") private var selectedAmbulanceId = ""
     @State private var isSyncing = false
     @State private var syncError: String?
@@ -39,6 +41,7 @@ struct DashboardView: View {
                     ambulancePicker
                     syncErrorBanner
                     offlineBanner
+                    openShiftCard
                     dailyCard
                     periodicSection
                     quickLinksSection
@@ -83,6 +86,11 @@ struct DashboardView: View {
             }
         }
         .task {
+            for await list in repo.runsAwaitingClosure() {
+                awaitingClosure = list
+            }
+        }
+        .task {
             // SKIE gjør sealed interface om til en Swift-enum vi kan switche på
             for await status in AppDependencies.shared.syncService.status {
                 switch onEnum(of: status) {
@@ -99,6 +107,53 @@ struct DashboardView: View {
                 }
             }
         }
+    }
+
+    /// Neste mannskap skal kunne se at forrige vakt ikke er lukket – ellers
+    /// forsvinner det i stillhet, og ingen vet om bilen ble ryddet og
+    /// oksygenet skrudd av.
+    @ViewBuilder
+    private var openShiftCard: some View {
+        if let openShift = awaitingClosure.first(where: { $0.ambulanceId == selectedAmbulance?.id }) {
+            NavigationLink {
+                ChecklistRunScreen(templateType: "DAILY")
+            } label: {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Label("Vakt ikke avsluttet", systemImage: "clock.badge.exclamationmark")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.orange)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(openShiftDetail(openShift))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func openShiftDetail(_ run: GetRunsAwaitingClosure) -> String {
+        // Spørringen filtrerer på beforeSignedAt IS NOT NULL, så SQLDelight
+        // utleder feltet som ikke-nullbart her
+        let millis = run.beforeSignedAt
+        let date = Date(timeIntervalSince1970: Double(millis) / 1000)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "nb_NO")
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        var text = "Før-kontrollen ble signert \(formatter.string(from: date))"
+        if let name = run.beforeSignedByName { text += " av \(name)" }
+        return text + ". Etter-vakt-kontrollen gjenstår."
     }
 
     /// Uten dekning fungerer appen som normalt – alt lagres lokalt og sendes

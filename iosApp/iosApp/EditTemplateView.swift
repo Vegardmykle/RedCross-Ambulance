@@ -159,7 +159,8 @@ struct EditItemsSection: View {
                     requiresValue: form.requiresValue,
                     unit: form.unit,
                     minValue: form.minValue.map { KotlinDouble(double: $0) },
-                    maxValue: form.maxValue.map { KotlinDouble(double: $0) }
+                    maxValue: form.maxValue.map { KotlinDouble(double: $0) },
+                    phase: form.phase
                 )
             }
         }
@@ -175,7 +176,8 @@ struct EditItemsSection: View {
                     requiresValue: form.requiresValue,
                     unit: form.unit,
                     minValue: form.minValue.map { KotlinDouble(double: $0) },
-                    maxValue: form.maxValue.map { KotlinDouble(double: $0) }
+                    maxValue: form.maxValue.map { KotlinDouble(double: $0) },
+                    phase: form.phase
                 )
             }
         }
@@ -228,6 +230,10 @@ struct EditItemsSection: View {
 
     private func subtitle(for item: ChecklistItem) -> String? {
         var parts: [String] = []
+        // Etter-vakt vises eksplisitt; før-vakt er normalen
+        if ChecklistPhase.companion.fromDb(value: item.phase) == .after {
+            parts.append("Etter vakt")
+        }
         if let description = item.description_, !description.isEmpty { parts.append(description) }
         if item.requiresValue != 0 {
             var measure = "Måling"
@@ -315,7 +321,7 @@ struct MoveBagSheet: View {
         Task {
             do {
                 try await repo.moveBag(bagId: bag.id, newParentId: target.id)
-                Task { try? await AppDependencies.shared.syncService.syncAll() }
+                AppDependencies.shared.syncService.requestSync()
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription
@@ -333,6 +339,7 @@ private struct EditingItemBox: Identifiable {
 struct ItemFormValues {
     var title: String
     var description: String?
+    var phase: ChecklistPhase
     var requiresValue: Bool
     var unit: String?
     var minValue: Double?
@@ -347,6 +354,7 @@ struct ItemFormSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var itemTitle = ""
     @State private var itemDescription = ""
+    @State private var phase: ChecklistPhase = .before
     @State private var requiresValue = false
     @State private var unit = ""
     @State private var minText = ""
@@ -363,6 +371,21 @@ struct ItemFormSheet: View {
                 Section("Punkt") {
                     TextField("Tittel, f.eks. Brannslukker", text: $itemTitle)
                     TextField("Beskrivelse (valgfritt)", text: $itemDescription)
+                }
+
+                Section {
+                    // Avgjør om punktet kontrolleres ved vaktstart eller vaktslutt.
+                    // Har lista minst ett etter-punkt, deles den i to og
+                    // signeres i to trinn.
+                    Picker("Når", selection: $phase) {
+                        Text("Før vakt").tag(ChecklistPhase.before)
+                        Text("Etter vakt").tag(ChecklistPhase.after)
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Når kontrolleres dette?")
+                } footer: {
+                    Text("Etter-punkter samles i en egen del som fylles ut når vakta er ferdig.")
                 }
 
                 Section {
@@ -404,6 +427,7 @@ struct ItemFormSheet: View {
         guard let existing else { return }
         itemTitle = existing.title
         itemDescription = existing.description_ ?? ""
+        phase = ChecklistPhase.companion.fromDb(value: existing.phase)
         requiresValue = existing.requiresValue != 0
         unit = existing.unit ?? ""
         minText = existing.minValue.map { EditItemsSection.formattedPublic($0.doubleValue) } ?? ""
@@ -415,6 +439,7 @@ struct ItemFormSheet: View {
             title: itemTitle.trimmingCharacters(in: .whitespaces),
             description: itemDescription.trimmingCharacters(in: .whitespaces).isEmpty
                 ? nil : itemDescription.trimmingCharacters(in: .whitespaces),
+            phase: phase,
             requiresValue: requiresValue,
             unit: requiresValue && !unit.trimmingCharacters(in: .whitespaces).isEmpty
                 ? unit.trimmingCharacters(in: .whitespaces) : nil,

@@ -124,3 +124,15 @@ tasks.register("betaRelease") {
 
 tasks.matching { it.name == "appDistributionUploadRelease" }
     .configureEach { mustRunAfter("assembleRelease") }
+
+/**
+ * Migrasjonsverifiseringen må faktisk kjøre når det bygges en APK.
+ *
+ * `verifyMigrations = true` i sharedLogic konfigurerer oppgaven, men ingenting
+ * i et vanlig bygg utløser den – heller ikke `betaRelease`. Konsekvensen var
+ * at 1.sqm i månedsvis ga et annet skjema enn .sq-filene beskriver, uten at
+ * noe bygg klaget. Feilen ville først vist seg som en krasj på enheten i
+ * bilen, første gang den ble oppdatert.
+ */
+tasks.matching { it.name.startsWith("assemble") }
+    .configureEach { dependsOn(":sharedLogic:verifySqlDelightMigration") }

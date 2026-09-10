@@ -67,6 +67,8 @@ import org.example.project.model.ChecklistPhase
 import org.example.project.model.ItemResult
 import org.example.project.model.filterNumeric
 import org.example.project.model.normalizeNumber
+import org.example.project.presentation.DeficiencySummary
+import org.example.project.presentation.checklistRunState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,8 +93,10 @@ fun ChecklistRunScreen(
         run = try { repo.startOrResumeRun(t.id, a) } catch (e: Exception) { null }
     }
 
-    val items by remember(template?.id) {
-        template?.let { repo.itemsFor(it.id) } ?: flowOf(emptyList())
+    // Hele treet – hovedliste og sekker. Fremdriften må kjenne sekkepunktene
+    // også når sekkene ikke vises, altså etter at før-delen er signert.
+    val treeItems by remember(template?.id) {
+        template?.let { repo.itemsForTemplateTree(it.id) } ?: flowOf(emptyList())
     }.collectAsState(emptyList())
 
     val bags by remember(template?.id) {
@@ -108,27 +112,14 @@ fun ChecklistRunScreen(
         run?.let { repo.itemIdsWithOpenDeficiencies(it.ambulanceId, it.id) } ?: flowOf(emptyList())
     }.collectAsState(emptyList())
 
-    var bagItems by remember { mutableStateOf(mapOf<String, List<ChecklistItem>>()) }
-    val allItems = items + bags.flatMap { bagItems[it.id] ?: emptyList() }
-    val answeredCount = allItems.count { responseByItem[it.id] != null }
-    val allAnswered = allItems.isNotEmpty() && answeredCount == allItems.size
-
-    // Vakta kontrolleres i to trinn: utstyret før vakt, avslutningen etterpå.
-    // Er det ingen etter-punkter (ukentlig, månedlig) beholdes én signatur.
-    fun inPhase(list: List<ChecklistItem>, phase: ChecklistPhase) =
-        list.filter { ChecklistPhase.fromDb(it.phase) == phase }
-
-    val beforeItems = inPhase(items, ChecklistPhase.BEFORE)
-    val afterItems = inPhase(allItems, ChecklistPhase.AFTER)
-    val hasAfterPhase = afterItems.isNotEmpty()
-
-    val beforeAll = inPhase(allItems, ChecklistPhase.BEFORE)
-    val beforeAnswered = beforeAll.count { responseByItem[it.id] != null }
-    val beforeComplete = beforeAll.isNotEmpty() && beforeAnswered == beforeAll.size
-    val afterAnswered = afterItems.count { responseByItem[it.id] != null }
-
-    val beforeSignedAt = run?.beforeSignedAt
-    val beforeSigned = beforeSignedAt != null
+    // All utledning skjer ett sted, delt med iOS-appen: fasedeling, tellere,
+    // om delene kan signeres, og hvilke avvik som meldes.
+    val state = checklistRunState(
+        rootTemplateId = template?.id ?: "",
+        items = treeItems,
+        responses = responses,
+        run = run,
+    )
 
     val scope = rememberCoroutineScope()
     var showEditWarning by remember { mutableStateOf(false) }
@@ -160,19 +151,6 @@ fun ChecklistRunScreen(
         }
     }
 
-    /**
-     * Punktene står i fast rekkefølge mens kontrollen pågår.
-     *
-     * Tidligere sank besvarte punkter til bunnen, men da flyttet innholdet seg
-     * under fingeren på mannskapet: du sikter på ett punkt, lista hopper, og du
-     * treffer et annet. Særlig uheldig med hansker, i bevegelse, eller for
-     * brukere med nedsatt syn eller skjelvinger – og på et sikkerhetskritisk
-     * skjema er et feiltrykk dyrt. Rekkefølgen følger nå sortOrder, som er den
-     * rekkefølgen utstyret faktisk ligger i bilen.
-     */
-    fun inFixedOrder(list: List<ChecklistItem>): List<ChecklistItem> =
-        list.sortedBy { it.sortOrder }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -203,11 +181,11 @@ fun ChecklistRunScreen(
                             Text("Sjekkliste signert og lukket", color = RkGreen)
                         }
                         LinearProgressIndicator(
-                            progress = { if (allItems.isEmpty()) 0f else answeredCount.toFloat() / allItems.size },
+                            progress = { state.overall.fraction },
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Text(
-                            "$answeredCount av ${allItems.size} punkter besvart",
+                            "${state.overall.answered} av ${state.overall.total} punkter besvart",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -218,19 +196,19 @@ fun ChecklistRunScreen(
 
                 item {
                     PhaseHeader(
-                        title = if (hasAfterPhase) "FØR VAKT" else "UTSTYR",
-                        answered = beforeAnswered,
-                        total = beforeAll.size,
-                        signedAt = beforeSignedAt,
+                        title = if (state.hasAfterPhase) "FØR VAKT" else "UTSTYR",
+                        answered = state.before.answered,
+                        total = state.before.total,
+                        signedAt = state.beforeSignedAt,
                         signedByName = beforeSignedByName,
-                        onReopen = if (beforeSigned) {
+                        onReopen = if (state.beforeSigned) {
                             { showReopenConfirm = true }
                         } else null,
                     )
                 }
 
-                if (!beforeSigned) {
-                    items(inFixedOrder(beforeItems), key = { it.id }) { item ->
+                if (!state.beforeSigned) {
+                    items(state.beforeItems, key = { it.id }) { item ->
                         ChecklistItemRow(
                             item = item,
                             response = responseByItem[item.id],
@@ -245,7 +223,6 @@ fun ChecklistRunScreen(
                             bag = bag,
                             responseByItem = responseByItem,
                             earlierDeficiencyIds = earlierDeficiencyIds.toSet(),
-                            onItemsChange = { list -> bagItems = bagItems + (bag.id to list) },
                             onAnswer = { item, result, comment, reading -> answer(item, result, comment, reading) },
                         )
                     }
@@ -254,16 +231,16 @@ fun ChecklistRunScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Button(
                                 onClick = {
-                                    signPhase = if (hasAfterPhase) ChecklistPhase.BEFORE
+                                    signPhase = if (state.hasAfterPhase) ChecklistPhase.BEFORE
                                     else ChecklistPhase.AFTER
                                     showSignDialog = true
                                 },
-                                enabled = if (hasAfterPhase) beforeComplete else allAnswered,
+                                enabled = state.canSignBefore,
                                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                             ) {
-                                Text(if (hasAfterPhase) "Signer før vakt" else "Signer og fullfør")
+                                Text(if (state.hasAfterPhase) "Signer før vakt" else "Signer og fullfør")
                             }
-                            if (if (hasAfterPhase) !beforeComplete else !allAnswered) {
+                            if (!state.canSignBefore) {
                                 Text(
                                     "Du må svare på alle punkter før du kan signere.",
                                     style = MaterialTheme.typography.labelSmall,
@@ -276,16 +253,16 @@ fun ChecklistRunScreen(
 
                 // ---------- Del 2: etter vakt ----------
 
-                if (hasAfterPhase) {
+                if (state.hasAfterPhase) {
                     item {
                         PhaseHeader(
                             title = "ETTER VAKT",
-                            answered = afterAnswered,
-                            total = afterItems.size,
+                            answered = state.after.answered,
+                            total = state.after.total,
                             signedAt = null,
                             signedByName = null,
                             onReopen = null,
-                            hint = if (beforeSigned) {
+                            hint = if (state.beforeSigned) {
                                 "Fylles ut når vakta er ferdig."
                             } else {
                                 "Gjøres ved vaktslutt – etter at før-kontrollen er signert."
@@ -293,7 +270,7 @@ fun ChecklistRunScreen(
                         )
                     }
 
-                    items(inFixedOrder(afterItems), key = { it.id }) { item ->
+                    items(state.afterItems, key = { it.id }) { item ->
                         ChecklistItemRow(
                             item = item,
                             response = responseByItem[item.id],
@@ -309,16 +286,16 @@ fun ChecklistRunScreen(
                                     signPhase = ChecklistPhase.AFTER
                                     showSignDialog = true
                                 },
-                                enabled = beforeSigned && allAnswered,
+                                enabled = state.canComplete,
                                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                             ) { Text("Signer og avslutt vakt") }
-                            if (!beforeSigned) {
+                            if (!state.beforeSigned) {
                                 Text(
                                     "Før-kontrollen må signeres først.",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                            } else if (!allAnswered) {
+                            } else if (!state.overall.isComplete) {
                                 Text(
                                     "Du må svare på alle punkter før du kan avslutte vakta.",
                                     style = MaterialTheme.typography.labelSmall,
@@ -392,16 +369,11 @@ fun ChecklistRunScreen(
 
     if (showSignDialog) {
         val signingBefore = signPhase == ChecklistPhase.BEFORE
-        // Vis bare avvikene fra den delen som faktisk signeres
-        val relevantItems = if (signingBefore) beforeAll else allItems
         SignDialog(
             repo = repo,
             title = if (signingBefore) "Signer før vakt" else "Signer og avslutt vakt",
-            deficiencies = relevantItems.mapNotNull { item ->
-                val response = responseByItem[item.id] ?: return@mapNotNull null
-                if (response.result == "JA") null
-                else Triple(item.title, resultLabel(response.result), response.comment)
-            },
+            // Vis bare avvikene fra den delen som faktisk signeres
+            deficiencies = if (signingBefore) state.beforeDeficiencies else state.allDeficiencies,
             onDismiss = { showSignDialog = false },
             onSign = { userId ->
                 val r = run ?: return@SignDialog false
@@ -676,17 +648,20 @@ fun ValueDialog(unit: String?, initial: String, onDismiss: () -> Unit, onSave: (
     )
 }
 
+/**
+ * Sekk/taske som kan foldes ut. Punktene hentes her fordi kortet viser dem,
+ * men fremdriften regnes ikke ut herfra – den kommer fra hele treet, slik at
+ * sekkepunktene teller også når kortene er skjult.
+ */
 @Composable
 fun BagCard(
     repo: ChecklistRepository,
     bag: ChecklistTemplate,
     responseByItem: Map<String, ChecklistResponse>,
     earlierDeficiencyIds: Set<String>,
-    onItemsChange: (List<ChecklistItem>) -> Unit,
     onAnswer: (ChecklistItem, ItemResult, String?, String?) -> Unit,
 ) {
     val items by remember(bag.id) { repo.itemsFor(bag.id) }.collectAsState(emptyList())
-    androidx.compose.runtime.LaunchedEffect(items) { onItemsChange(items) }
     var expanded by remember { mutableStateOf(false) }
 
     val answered = items.count { responseByItem[it.id] != null }
@@ -730,7 +705,7 @@ fun BagCard(
 @Composable
 fun SignDialog(
     repo: ChecklistRepository,
-    deficiencies: List<Triple<String, String, String?>>,
+    deficiencies: List<DeficiencySummary>,
     onDismiss: () -> Unit,
     onSign: suspend (String) -> Boolean,
     // Sier hvilken del som signeres, så mannskapet vet hva de bekrefter
@@ -751,9 +726,12 @@ fun SignDialog(
                     Text("Ingen avvik registrert.", color = RkGreen)
                 } else {
                     Text("Avvik som meldes:", style = MaterialTheme.typography.labelMedium)
-                    deficiencies.forEach { (title, result, comment) ->
-                        Text("• $title – $result" + (comment?.let { " ($it)" } ?: ""),
-                            style = MaterialTheme.typography.bodySmall)
+                    deficiencies.forEach { deficiency ->
+                        Text(
+                            "• ${deficiency.title} – ${deficiency.resultLabel}" +
+                                (deficiency.comment?.let { " ($it)" } ?: ""),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                 }
                 OutlinedTextField(

@@ -70,6 +70,23 @@ applyRemoteItem:
 INSERT OR REPLACE INTO ChecklistItem(id, templateId, title, description, requiresValue, unit, minValue, maxValue, sortOrder, phase, updatedAt, deleted, synced)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 1);
 
+-- Alle punkter i en mal inkludert sekkene dens, i den rekkefølgen utstyret
+-- ligger i bilen.
+--
+-- Skjermen utledet tidligere dette settet ved å samle opp punkter fra
+-- sekkekortene etter hvert som de ble tegnet. Sekkene tegnes bare før
+-- før-delen er signert, så etter signering forsvant sekkepunktene fra
+-- fremdriften – telleren viste for lite, og «alle punkter besvart» ble sant
+-- med ubesvarte punkter igjen i sekkene. Settet må komme fra databasen, ikke
+-- fra hva som tilfeldigvis er tegnet.
+getItemsForTemplateTree:
+SELECT ChecklistItem.*
+FROM ChecklistItem
+WHERE ChecklistItem.deleted = 0
+  AND (ChecklistItem.templateId = ?1
+       OR ChecklistItem.templateId IN (SELECT id FROM ChecklistTemplate WHERE parentId = ?1 AND deleted = 0))
+ORDER BY ChecklistItem.sortOrder, ChecklistItem.templateId;
+
 -- Antall punkter i en mal inkludert alle sekkene dens
 countItemsForTemplateTree:
 SELECT COUNT(*)

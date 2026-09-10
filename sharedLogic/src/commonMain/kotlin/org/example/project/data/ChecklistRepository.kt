@@ -64,6 +64,19 @@ class ChecklistRepository(private val db: AppDatabase) {
         db.checklistItemQueries.getItemsByTemplateId(templateId)
             .asFlow().mapToList(Dispatchers.Default)
 
+    /**
+     * Alle punkter i lista inkludert sekkene, i den rekkefølgen utstyret
+     * ligger i bilen.
+     *
+     * Sjekklisteskjermen trenger hele settet for å telle fremdrift og avgjøre
+     * om alt er besvart. Å samle det opp fra sekkekortene mens de tegnes
+     * fungerer bare så lenge de faktisk tegnes – og sekkene skjules når
+     * før-delen er signert.
+     */
+    fun itemsForTemplateTree(templateId: String): Flow<List<ChecklistItem>> =
+        db.checklistItemQueries.getItemsForTemplateTree(templateId)
+            .asFlow().mapToList(Dispatchers.Default)
+
     suspend fun createTemplate(
         name: String,
         type: TemplateType,

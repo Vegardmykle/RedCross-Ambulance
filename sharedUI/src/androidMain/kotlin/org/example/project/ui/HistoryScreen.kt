@@ -36,8 +36,12 @@ import database.GetRecentRuns
 import database.GetResponsesWithItemsForRun
 import org.example.project.Screen
 import org.example.project.data.ChecklistRepository
-import org.example.project.model.ResolvedVia
 import org.example.project.model.RunStatus
+import org.example.project.presentation.DeviationOutcome
+import org.example.project.presentation.ResponseOutcome
+import org.example.project.presentation.deviationSummary
+import org.example.project.presentation.responseBadge
+import org.example.project.presentation.resolutionText
 
 @Composable
 internal fun HistoryRunCard(run: GetRecentRuns, onClick: () -> Unit) {
@@ -105,27 +109,13 @@ private fun statusColor(status: String) = when (RunStatus.fromDb(status)) {
 
 @Composable
 private fun DeviationLabel(run: GetRecentRuns) {
-    val total = run.deviationCount
-    val resolved = run.resolvedCount
-    val superseded = run.supersededCount
-    val open = total - resolved - superseded
-
-    val (text, color) = when {
-        total == 0L -> "Ingen avvik" to RkGreen
-        open > 0L -> {
-            val parts = mutableListOf(if (open == 1L) "1 åpent avvik" else "$open åpne avvik")
-            if (resolved > 0L) parts.add("$resolved løst")
-            if (superseded > 0L) parts.add("$superseded videreført")
-            parts.joinToString(" · ") to RkError
-        }
-        superseded > 0L -> {
-            val text = if (resolved > 0L) "$superseded videreført · $resolved løst"
-            else if (superseded == 1L) "1 avvik videreført" else "$superseded avvik videreført"
-            text to RkOrange
-        }
-        else -> (if (total == 1L) "Avviket er løst" else "Alle $total avvik løst") to RkGreen
+    val summary = deviationSummary(run.deviationCount, run.resolvedCount, run.supersededCount)
+    val color = when (summary.outcome) {
+        DeviationOutcome.OPEN -> RkError
+        DeviationOutcome.CARRIED_OVER -> RkOrange
+        DeviationOutcome.NO_DEVIATIONS, DeviationOutcome.RESOLVED -> RkGreen
     }
-    Text(text, style = MaterialTheme.typography.labelMedium, color = color)
+    Text(summary.text, style = MaterialTheme.typography.labelMedium, color = color)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -192,25 +182,18 @@ fun RunDetailScreen(
 
 @Composable
 private fun ResponseDetailCard(response: GetResponsesWithItemsForRun) {
-    val isResolved = response.resolved != 0L
-    val isSuperseded = ResolvedVia.fromDb(response.resolvedVia) == ResolvedVia.SUPERSEDED
-
-    val badgeText = when {
-        isSuperseded -> "Videreført"
-        isResolved -> "Løst"
-        else -> resultLabel(response.result)
-    }
-    val badgeColor = when {
-        isSuperseded -> RkOrange
-        isResolved -> RkGreen
-        else -> resultColor(response.result)
+    val badge = responseBadge(response)
+    val badgeColor = when (badge.outcome) {
+        ResponseOutcome.CARRIED_OVER -> RkOrange
+        ResponseOutcome.RESOLVED, ResponseOutcome.OK -> RkGreen
+        ResponseOutcome.DEVIATION -> resultColor(response.result)
     }
 
     Card {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 Text(response.itemTitle, modifier = Modifier.weight(1f))
-                ResultBadge(badgeText, badgeColor, resultIcon(response.result))
+                ResultBadge(badge.text, badgeColor, resultIcon(response.result))
             }
             response.reading?.takeIf { it.isNotEmpty() }?.let {
                 Text("Avlest: $it ${response.unit ?: ""}",
@@ -222,19 +205,12 @@ private fun ResponseDetailCard(response: GetResponsesWithItemsForRun) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             val resolvedAt = response.resolvedAt
-            if (isResolved && resolvedAt != null) {
-                val was = "Var ${resultLabel(response.result).lowercase()}"
-                val how = when (ResolvedVia.fromDb(response.resolvedVia)) {
-                    ResolvedVia.RECHECK -> "OK ved senere kontroll"
-                    ResolvedVia.SUPERSEDED -> "videreført til senere kontroll"
-                    else -> response.resolvedByName?.let { "løst av $it" } ?: "løst manuelt"
-                }
-                var text = "$was · $how ${formatMillis(resolvedAt)}"
-                response.resolvedReading?.takeIf { it.isNotEmpty() }?.let {
-                    text += " · ny verdi $it ${response.unit ?: ""}"
-                }
-                Text(text, style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (response.resolved != 0L && resolvedAt != null) {
+                Text(
+                    resolutionText(response, formatMillis(resolvedAt)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

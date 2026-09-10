@@ -36,18 +36,17 @@ struct HistoryView: View {
 struct HistoryRow: View {
     let run: GetRecentRuns
 
-    private var statusText: String {
-        switch run.status {
-        case "COMPLETED": "Signert"
-        case "EXPIRED": "Utløpt – ikke signert"
-        default: "Pågår"
-        }
-    }
+    private var status: RunStatus? { RunStatus.companion.fromDb(value: run.status) }
+
+    // En status appen ikke kjenner kan komme fra en nyere versjon via synk.
+    // Den vises som ukjent i stedet for «Pågår», som ville antydet at
+    // kontrollen kan tas opp igjen.
+    private var statusText: String { status?.label ?? "Ukjent status" }
 
     private var statusColor: Color {
-        switch run.status {
-        case "COMPLETED": .green
-        case "EXPIRED": .orange
+        switch status {
+        case .completed: .green
+        case .expired: .orange
         default: .secondary
         }
     }
@@ -62,43 +61,39 @@ struct HistoryRow: View {
         return formatter.string(from: date)
     }
 
+    /// Sammendraget regnes ut i sharedLogic – regnestykket bak «åpne avvik»
+    /// er ikke opplagt, og skal ikke finnes i to versjoner.
+    private var deviation: DeviationSummary {
+        RunSummaryKt.deviationSummary(
+            total: run.deviationCount,
+            resolved: run.resolvedCount,
+            superseded: run.supersededCount
+        )
+    }
+
     @ViewBuilder
     private var deviationLabel: some View {
-        let total = run.deviationCount
-        let resolved = run.resolvedCount
-        let superseded = run.supersededCount
-        let open = total - resolved - superseded
+        let summary = deviation
+        Label(summary.text, systemImage: deviationIcon(summary.outcome))
+            .font(.caption)
+            .fontWeight(summary.outcome == .noDeviations ? .regular : .medium)
+            .foregroundStyle(deviationColor(summary.outcome))
+    }
 
-        if total == 0 {
-            Label("Ingen avvik", systemImage: "checkmark.circle")
-                .font(.caption)
-                .foregroundStyle(.green)
-        } else if open > 0 {
-            Label(openLabelText(open: open, resolved: resolved, superseded: superseded), systemImage: "exclamationmark.triangle.fill")
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundStyle(Color.rkError)
-        } else if superseded > 0 {
-            let text = resolved > 0
-                ? "\(superseded) videreført · \(resolved) løst"
-                : (superseded == 1 ? "1 avvik videreført" : "\(superseded) avvik videreført")
-            Label(text, systemImage: "arrow.triangle.2.circlepath")
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundStyle(.orange)
-        } else {
-            Label(total == 1 ? "Avviket er løst" : "Alle \(total) avvik løst", systemImage: "checkmark.circle")
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundStyle(.green)
+    private func deviationIcon(_ outcome: DeviationOutcome) -> String {
+        switch outcome {
+        case .open: "exclamationmark.triangle.fill"
+        case .carriedOver: "arrow.triangle.2.circlepath"
+        default: "checkmark.circle"
         }
     }
 
-    private func openLabelText(open: Int64, resolved: Int64, superseded: Int64) -> String {
-        var parts = [open == 1 ? "1 åpent avvik" : "\(open) åpne avvik"]
-        if resolved > 0 { parts.append("\(resolved) løst") }
-        if superseded > 0 { parts.append("\(superseded) videreført") }
-        return parts.joined(separator: " · ")
+    private func deviationColor(_ outcome: DeviationOutcome) -> Color {
+        switch outcome {
+        case .open: Color.rkError
+        case .carriedOver: .orange
+        default: .green
+        }
     }
 
     var body: some View {

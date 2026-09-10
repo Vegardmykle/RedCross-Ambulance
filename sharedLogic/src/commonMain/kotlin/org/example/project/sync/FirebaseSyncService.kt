@@ -15,14 +15,18 @@ import kotlinx.coroutines.withContext
 import org.example.project.db.AppDatabase
 
 /**
- * Firestore-implementasjon av SyncService.
+ * Synkronisering mot Firestore.
  * Konflikthåndtering: nyeste updatedAt vinner ved pull; push skriver hele dokumentet.
  * PDF-filer synkes ikke (krever Firebase Storage/Blaze-plan) – de forblir lokale.
+ *
+ * Inngangen for resten av appen er [requestSync] (avfyr og glem) og [syncAll]
+ * (vent på resultatet). Push og pull er interne trinn i den rekkefølgen
+ * [syncAll] bestemmer, og skal ikke kalles hver for seg.
  */
-class FirebaseSyncService(private val db: AppDatabase) : SyncService {
+class FirebaseSyncService(private val db: AppDatabase) {
 
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.Idle)
-    override val status: Flow<SyncStatus> = _status
+    val status: Flow<SyncStatus> = _status
 
     private val firestore get() = Firebase.firestore
 
@@ -155,8 +159,7 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
         }
     }
 
-    @Throws(Exception::class, kotlin.coroutines.cancellation.CancellationException::class)
-    override suspend fun pushLocalChanges() = withContext(Dispatchers.Default) {
+    private suspend fun pushLocalChanges() = withContext(Dispatchers.Default) {
         val outcome = PushOutcome()
 
         db.checklistTemplateQueries.getUnsyncedTemplates().executeAsList().forEach { r ->
@@ -229,8 +232,7 @@ class FirebaseSyncService(private val db: AppDatabase) : SyncService {
     private var lastPushFailures = 0
     private var lastPushError: String? = null
 
-    @Throws(Exception::class, kotlin.coroutines.cancellation.CancellationException::class)
-    override suspend fun pullRemoteChanges() = withContext(Dispatchers.Default) {
+    private suspend fun pullRemoteChanges() = withContext(Dispatchers.Default) {
         val templateDocs = firestore.collection("templates").get().documents
         log("pull: fant ${templateDocs.size} maler i skyen")
         templateDocs.forEach { doc ->

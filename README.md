@@ -50,8 +50,11 @@ Prinsipper som styrer koden:
 
 - **Lokal-først**: UI leser og skriver kun mot SQLite. Firestore er et
   synkroniseringslag, aldri en forutsetning. Ingen dekning = ingen forskjell.
-- **Utbyttbar synk**: `SyncService`-grensesnittet gjør at Firebase kan byttes
-  ut med et internt Røde Kors-API uten endringer i appene.
+- **Synk er isolert, ikke abstrahert**: all Firestore-kode ligger i
+  `FirebaseSyncService`, og resten av appen kaller bare `requestSync()`.
+  Skal backend byttes med et internt Røde Kors-API, er det den ene klassen
+  som skrives om – men `sharedLogic` avhenger i dag av Firebase-bibliotekene
+  direkte, så det er en reell jobb, ikke et konfigurasjonsbytte.
 - **Myk sletting**: rader merkes `deleted` og synkes som tombstones, slik at
   sletting når alle enheter.
 - **Kotlin → Swift** via SKIE: Flow blir AsyncSequence, suspend blir
@@ -131,7 +134,7 @@ migrasjonene og `.sq`-filene ikke ender opp med samme skjema.
 ./gradlew :sharedLogic:testAndroidHostTest
 ```
 
-33 tester dekker det som har konsekvenser hvis det svikter: signering og
+68 tester dekker det som har konsekvenser hvis det svikter: signering og
 fullføring, grenseverdier på målinger og avvikslivssyklusen. Hver test kjører
 mot en egen SQLite-database i minnet – ingen emulator eller nettverk.
 [`diagrams/test-coverage.md`](diagrams/test-coverage.md) viser hva som er

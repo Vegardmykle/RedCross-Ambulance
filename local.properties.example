@@ -1,0 +1,29 @@
+# Kopier denne til local.properties og fyll inn dine egne verdier.
+# local.properties er utelatt fra git fordi den inneholder passord og
+# maskinspesifikke stier.
+
+# Sti til Android SDK. Android Studio fyller vanligvis inn denne selv
+# første gang du åpner prosjektet.
+sdk.dir=/Users/DITT_BRUKERNAVN/Library/Android/sdk
+
+# Signeringsnøkkel for release-bygg.
+# Trengs bare hvis du skal lage en versjon til mannskapet – debug-bygg
+# signeres automatisk med Androids egen debug-nøkkel.
+#
+# Nøkkelen ligger IKKE i repoet. Få den av den som forvalter appen, eller
+# lag en ny med:
+#   keytool -genkeypair -v -keystore ~/keys/redcross.jks \
+#           -alias redcross -keyalg RSA -keysize 2048 -validity 10000
+#
+# Merk: lager du en ny nøkkel, kan du ikke lenger oppdatere appen på
+# enheter som har den gamle installert.
+RELEASE_STORE_FILE=/Users/DITT_BRUKERNAVN/keys/redcross.jks
+RELEASE_STORE_PASSWORD=
+RELEASE_KEY_ALIAS=redcross
+RELEASE_KEY_PASSWORD=
+
+# Valgfritt: legger byggeutdata utenfor prosjektmappa.
+# Nødvendig hvis prosjektet ligger i en mappe som synkroniseres av
+# iCloud eller OneDrive – synkroniseringen lager kopier med « 2» i navnet
+# mens Gradle skriver, og dexing feiler med «defined multiple times».
+#buildDirRoot=/Users/DITT_BRUKERNAVN/.gradle-build-out

@@ -4,13 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -37,46 +34,8 @@ import kotlinx.coroutines.launch
 import org.example.project.data.ChecklistRepository
 import org.example.project.model.OpenDeficiency
 
-@Composable
-fun DeficienciesScreen(repo: ChecklistRepository) {
-    val deficiencies by repo.openDeficiencies().collectAsState(emptyList())
-    var resolveTarget by remember { mutableStateOf<OpenDeficiency?>(null) }
-
-    TabletContainer {
-        if (deficiencies.isEmpty()) {
-            Column(
-                Modifier.fillMaxSize().padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Icon(Icons.Default.CheckCircle, null, tint = RkGreen)
-                Text("Ingen åpne avvik", style = MaterialTheme.typography.titleMedium)
-                Text("Alt utstyr er meldt i orden.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        } else {
-            LazyColumn(
-                Modifier.fillMaxSize().padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                item {
-                    Text("Mangler", style = MaterialTheme.typography.headlineMedium)
-                }
-                items(deficiencies, key = { it.id }) { deficiency ->
-                    DeficiencyCard(deficiency) { resolveTarget = deficiency }
-                }
-            }
-        }
-    }
-
-    resolveTarget?.let { target ->
-        ResolveDialog(
-            repo = repo,
-            deficiency = target,
-            onDismiss = { resolveTarget = null },
-        )
-    }
-}
+// Åpne mangler vises som en seksjon i ArchiveScreen, ikke som egen skjerm.
+// Kortet og løs-dialogen nedenfor er delene som faktisk brukes.
 
 @Composable
 internal fun DeficiencyCard(deficiency: OpenDeficiency, onResolve: () -> Unit) {

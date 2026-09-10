@@ -134,7 +134,7 @@ migrasjonene og `.sq`-filene ikke ender opp med samme skjema.
 ./gradlew :sharedLogic:testAndroidHostTest
 ```
 
-68 tester dekker det som har konsekvenser hvis det svikter: signering og
+66 tester dekker det som har konsekvenser hvis det svikter: signering og
 fullføring, grenseverdier på målinger og avvikslivssyklusen. Hver test kjører
 mot en egen SQLite-database i minnet – ingen emulator eller nettverk.
 [`diagrams/test-coverage.md`](diagrams/test-coverage.md) viser hva som er

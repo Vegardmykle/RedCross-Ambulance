@@ -87,7 +87,7 @@ class ChecklistRepository(private val db: AppDatabase) {
         id
     }
 
-    suspend fun renameTemplate(id: String, name: String) =
+    suspend fun renameTemplate(id: String, name: String): Unit =
         withContext(Dispatchers.Default) {
             db.checklistTemplateQueries.updateTemplateName(id, name, currentTimeMillis())
         }
@@ -101,7 +101,7 @@ class ChecklistRepository(private val db: AppDatabase) {
      * signering.
      */
     @Throws(IllegalArgumentException::class, IllegalStateException::class, CancellationException::class)
-    suspend fun moveBag(bagId: String, newParentId: String) = withContext(Dispatchers.Default) {
+    suspend fun moveBag(bagId: String, newParentId: String): Unit = withContext(Dispatchers.Default) {
         require(bagId != newParentId) { "En sekk kan ikke være sin egen hovedliste" }
 
         val bag = db.checklistTemplateQueries.getTemplateById(bagId).executeAsOneOrNull()
@@ -122,7 +122,7 @@ class ChecklistRepository(private val db: AppDatabase) {
     }
 
     /** Sletter (soft) mal, dens punkter og eventuelle sekker med innhold. */
-    suspend fun deleteTemplate(id: String) = withContext(Dispatchers.Default) {
+    suspend fun deleteTemplate(id: String): Unit = withContext(Dispatchers.Default) {
         val now = currentTimeMillis()
         db.transaction {
             db.checklistTemplateQueries.getBagsForTemplate(id).executeAsList().forEach { bag ->
@@ -165,7 +165,7 @@ class ChecklistRepository(private val db: AppDatabase) {
         minValue: Double? = null,
         maxValue: Double? = null,
         phase: ChecklistPhase = ChecklistPhase.BEFORE,
-    ) = withContext(Dispatchers.Default) {
+    ): Unit = withContext(Dispatchers.Default) {
         db.checklistItemQueries.updateItem(
             id, title, description,
             if (requiresValue) 1L else 0L, unit, minValue, maxValue, phase.db,
@@ -173,12 +173,12 @@ class ChecklistRepository(private val db: AppDatabase) {
         )
     }
 
-    suspend fun deleteItem(id: String) = withContext(Dispatchers.Default) {
+    suspend fun deleteItem(id: String): Unit = withContext(Dispatchers.Default) {
         db.checklistItemQueries.deleteItem(id, currentTimeMillis())
     }
 
     /** Setter ny rekkefølge: itemIds i ønsket rekkefølge får sortOrder 1, 2, 3 … */
-    suspend fun reorderItems(itemIds: List<String>) = withContext(Dispatchers.Default) {
+    suspend fun reorderItems(itemIds: List<String>): Unit = withContext(Dispatchers.Default) {
         val now = currentTimeMillis()
         db.transaction {
             itemIds.forEachIndexed { index, id ->
@@ -259,7 +259,7 @@ class ChecklistRepository(private val db: AppDatabase) {
         result: ItemResult,
         comment: String? = null,
         reading: String? = null,
-    ) = withContext(Dispatchers.Default) {
+    ): Unit = withContext(Dispatchers.Default) {
         val value = reading?.let {
             requireNotNull(it.toDoubleOrNull()) { "Avlest verdi må være et tall" }
         }
@@ -311,7 +311,7 @@ class ChecklistRepository(private val db: AppDatabase) {
      * Krever at alle før-punktene er besvart, men rører ikke etter-punktene.
      */
     @Throws(IllegalStateException::class, IllegalArgumentException::class, CancellationException::class)
-    suspend fun signBeforeShift(runId: String, userId: String) =
+    suspend fun signBeforeShift(runId: String, userId: String): Unit =
         withContext(Dispatchers.Default) {
             require(userId.isNotBlank()) { "Mannskaps-ID er påkrevd" }
             requireNotNull(db.userQueries.getUserById(userId).executeAsOneOrNull()) {
@@ -343,7 +343,7 @@ class ChecklistRepository(private val db: AppDatabase) {
      * Mulig helt til kontrollen avsluttes; etter det er alt låst.
      */
     @Throws(IllegalStateException::class, CancellationException::class)
-    suspend fun reopenBeforeShift(runId: String) = withContext(Dispatchers.Default) {
+    suspend fun reopenBeforeShift(runId: String): Unit = withContext(Dispatchers.Default) {
         val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
         check(run != null && run.status == RunStatus.IN_PROGRESS.db) {
             "Kontrollen er lukket og kan ikke endres"
@@ -374,7 +374,7 @@ class ChecklistRepository(private val db: AppDatabase) {
      * kontrollen ble stående åpen.
      */
     @Throws(IllegalStateException::class, IllegalArgumentException::class, CancellationException::class)
-    suspend fun completeRun(runId: String, userId: String, comment: String? = null) =
+    suspend fun completeRun(runId: String, userId: String, comment: String? = null): Unit =
         withContext(Dispatchers.Default) {
             require(userId.isNotBlank()) { "Mannskaps-ID er påkrevd" }
             val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
@@ -487,7 +487,7 @@ class ChecklistRepository(private val db: AppDatabase) {
      * og hvem som løste det (resolvedByUserId) bevares.
      */
     @Throws(IllegalStateException::class, IllegalArgumentException::class, CancellationException::class)
-    suspend fun resolveDeficiency(responseId: String, userId: String, newReading: String? = null) =
+    suspend fun resolveDeficiency(responseId: String, userId: String, newReading: String? = null): Unit =
         withContext(Dispatchers.Default) {
             require(userId.isNotBlank()) { "Mannskaps-ID er påkrevd" }
             requireNotNull(db.userQueries.getUserById(userId).executeAsOneOrNull()) {
@@ -522,13 +522,13 @@ class ChecklistRepository(private val db: AppDatabase) {
 
     /** id = mannskaps-ID (ikke generert). */
     @Throws(IllegalArgumentException::class, CancellationException::class)
-    suspend fun addUser(id: String, name: String, role: String) =
+    suspend fun addUser(id: String, name: String, role: String): Unit =
         withContext(Dispatchers.Default) {
             require(id.isNotBlank()) { "Mannskaps-ID er påkrevd" }
             db.userQueries.insertUser(id, name, role, currentTimeMillis())
         }
 
-    suspend fun deleteUser(id: String) = withContext(Dispatchers.Default) {
+    suspend fun deleteUser(id: String): Unit = withContext(Dispatchers.Default) {
         db.userQueries.deleteUser(id, currentTimeMillis())
     }
 
@@ -545,7 +545,7 @@ class ChecklistRepository(private val db: AppDatabase) {
             id
         }
 
-    suspend fun deleteAmbulance(id: String) = withContext(Dispatchers.Default) {
+    suspend fun deleteAmbulance(id: String): Unit = withContext(Dispatchers.Default) {
         db.ambulanceQueries.deleteAmbulance(id, currentTimeMillis())
     }
 
@@ -562,12 +562,12 @@ class ChecklistRepository(private val db: AppDatabase) {
             id
         }
 
-    suspend fun updateLink(id: String, title: String, url: String) =
+    suspend fun updateLink(id: String, title: String, url: String): Unit =
         withContext(Dispatchers.Default) {
             db.appLinkQueries.updateLink(id, title, url, currentTimeMillis())
         }
 
-    suspend fun deleteLink(id: String) = withContext(Dispatchers.Default) {
+    suspend fun deleteLink(id: String): Unit = withContext(Dispatchers.Default) {
         db.appLinkQueries.deleteLink(id, currentTimeMillis())
     }
 
@@ -584,12 +584,12 @@ class ChecklistRepository(private val db: AppDatabase) {
             id
         }
 
-    suspend fun updateDocument(id: String, title: String, uri: String) =
+    suspend fun updateDocument(id: String, title: String, uri: String): Unit =
         withContext(Dispatchers.Default) {
             db.documentQueries.updateDocument(id, title, uri, currentTimeMillis())
         }
 
-    suspend fun deleteDocument(id: String) = withContext(Dispatchers.Default) {
+    suspend fun deleteDocument(id: String): Unit = withContext(Dispatchers.Default) {
         db.documentQueries.deleteDocument(id, currentTimeMillis())
     }
 }

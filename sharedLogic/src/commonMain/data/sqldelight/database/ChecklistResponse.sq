@@ -72,6 +72,11 @@ WHERE ChecklistResponse.checklistRunId = ?1
   AND ChecklistItem.phase = ?2
   AND ChecklistItem.deleted = 0;
 
+-- Åpne avvik til Mangler-siden.
+--
+-- Slettede punkter filtreres bort: fjernes et punkt fra lista mens det har et
+-- åpent avvik, finnes det ingen kontroll som kan lukke avviket igjen, og det
+-- ville blitt stående uten vei ut.
 getOpenDeficiencies:
 SELECT
     ChecklistResponse.id,
@@ -98,6 +103,7 @@ JOIN Ambulance ON Ambulance.id = ChecklistRun.ambulanceId
 LEFT JOIN User ON User.id = ChecklistRun.userId
 WHERE ChecklistResponse.result IN ('NEI','MANGELFULL','ODELAGT')
   AND ChecklistResponse.resolved = 0
+  AND ChecklistItem.deleted = 0
 ORDER BY ChecklistResponse.checkedAt DESC;
 
 getUnsyncedResponses:

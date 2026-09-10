@@ -55,6 +55,9 @@ import database.ChecklistTemplate
 import kotlinx.coroutines.launch
 import org.example.project.data.ChecklistRepository
 import org.example.project.model.ChecklistPhase
+import org.example.project.model.MeasurementLimits
+import org.example.project.model.filterNumeric
+import org.example.project.model.formatNumber
 import org.example.project.model.TemplateType
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -367,8 +370,8 @@ private fun itemSubtitle(item: ChecklistItem): String? {
     if (item.requiresValue != 0L) {
         var measure = "Måling"
         item.unit?.takeIf { it.isNotEmpty() }?.let { measure += " i $it" }
-        item.minValue?.let { measure += " · min ${fmtDouble(it)}" }
-        item.maxValue?.let { measure += " · maks ${fmtDouble(it)}" }
+        val limits = MeasurementLimits(item.minValue, item.maxValue)
+        if (!limits.isEmpty) measure += " · ${limits.describeInline()}"
         parts.add(measure)
     }
     return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
@@ -398,8 +401,8 @@ private fun ItemFormDialog(
         mutableStateOf(ChecklistPhase.fromDb(existing?.phase))
     }
     var unit by remember { mutableStateOf(existing?.unit ?: "") }
-    var minText by remember { mutableStateOf(existing?.minValue?.let(::fmtDouble) ?: "") }
-    var maxText by remember { mutableStateOf(existing?.maxValue?.let(::fmtDouble) ?: "") }
+    var minText by remember { mutableStateOf(existing?.minValue?.let(::formatNumber) ?: "") }
+    var maxText by remember { mutableStateOf(existing?.maxValue?.let(::formatNumber) ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,

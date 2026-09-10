@@ -54,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.example.project.Screen
 import org.example.project.data.ChecklistRepository
+import org.example.project.model.RunStatus
 import org.example.project.util.currentTimeMillis
 import org.example.project.util.startOfTodayMillis
 
@@ -80,7 +81,7 @@ fun DashboardScreen(
     val typeById = templates.associate { it.id to it.type }
 
     fun latestCompleted(type: String): Long? = runs
-        .filter { it.status == "COMPLETED" && typeById[it.templateId] == type }
+        .filter { it.status == RunStatus.COMPLETED.db && typeById[it.templateId] == type }
         .mapNotNull { it.completedAt }
         .maxOrNull()
 

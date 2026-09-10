@@ -65,6 +65,8 @@ import org.example.project.Screen
 import org.example.project.data.ChecklistRepository
 import org.example.project.model.ChecklistPhase
 import org.example.project.model.ItemResult
+import org.example.project.model.filterNumeric
+import org.example.project.model.normalizeNumber
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

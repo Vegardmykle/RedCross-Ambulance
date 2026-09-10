@@ -32,7 +32,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.example.project.data.ChecklistRepository
+import org.example.project.model.MeasurementLimits
 import org.example.project.model.OpenDeficiency
+import org.example.project.model.filterNumeric
+import org.example.project.model.normalizeNumber
 
 // Åpne mangler vises som en seksjon i ArchiveScreen, ikke som egen skjerm.
 // Kortet og løs-dialogen nedenfor er delene som faktisk brukes.
@@ -101,10 +104,7 @@ internal fun ResolveDialog(
     val requiresValue = deficiency.requiresValue != 0L
     val matched = users.firstOrNull { it.id == crewId.trim() }
 
-    val limits = buildList {
-        deficiency.minValue?.let { add("min ${fmtDouble(it)}") }
-        deficiency.maxValue?.let { add("maks ${fmtDouble(it)}") }
-    }.joinToString(", ").let { if (it.isEmpty()) "" else " ($it)" }
+    val limits = MeasurementLimits(deficiency.minValue, deficiency.maxValue).describe()
 
     val canSave = matched != null && (!requiresValue || normalizeNumber(valueText) != null)
 

@@ -137,27 +137,10 @@ fun resultIcon(result: String): ImageVector = when (result) {
 fun formatMillis(millis: Long): String =
     SimpleDateFormat("d. MMM yyyy HH:mm", Locale("nb", "NO")).format(Date(millis))
 
-/** Kun sifre og ett desimaltegn (komma gjøres om til punktum). */
-fun filterNumeric(input: String): String {
-    var filtered = input.replace(",", ".").filter { it.isDigit() || it == '.' }
-    val firstDot = filtered.indexOf('.')
-    if (firstDot >= 0) {
-        filtered = filtered.substring(0, firstDot + 1) +
-            filtered.substring(firstDot + 1).filter { it.isDigit() }
-    }
-    return filtered
-}
-
-/** «.1» → «0.1», «180.» → «180». Returnerer null hvis ikke gyldig tall. */
-fun normalizeNumber(input: String): String? {
-    var value = input.trim()
-    if (value.endsWith(".")) value = value.dropLast(1)
-    if (value.startsWith(".")) value = "0$value"
-    return if (value.toDoubleOrNull() != null) value else null
-}
-
-fun fmtDouble(value: Double): String =
-    if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
+// Tallhåndteringen lå tidligere her. Den ligger nå i sharedLogic
+// (model/Numbers.kt og model/MeasurementLimits.kt), fordi den samme parsingen
+// avgjør om en avlest verdi flagges som avvik – da skal den ikke finnes i én
+// Kotlin-versjon og én Swift-versjon.
 
 /** Legger på https:// hvis skjema mangler – ellers åpnes ikke lenken. */
 fun normalizeUrl(raw: String): String {

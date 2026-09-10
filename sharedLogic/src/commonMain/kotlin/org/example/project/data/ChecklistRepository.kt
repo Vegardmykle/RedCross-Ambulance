@@ -22,7 +22,10 @@ import kotlinx.coroutines.withContext
 import org.example.project.db.AppDatabase
 import org.example.project.model.ChecklistPhase
 import org.example.project.model.ItemResult
+import org.example.project.model.MeasurementLimits
 import org.example.project.model.OpenDeficiency
+import org.example.project.model.ResolvedVia
+import org.example.project.model.RunStatus
 import org.example.project.model.TemplateType
 import kotlin.coroutines.cancellation.CancellationException
 import org.example.project.util.currentTimeMillis
@@ -248,7 +251,7 @@ class ChecklistRepository(private val db: AppDatabase) {
         }
 
         val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
-        check(run != null && run.status == "IN_PROGRESS") {
+        check(run != null && run.status == RunStatus.IN_PROGRESS.db) {
             "Sjekklisten er lukket og kan ikke endres"
         }
 
@@ -256,18 +259,13 @@ class ChecklistRepository(private val db: AppDatabase) {
         var finalComment = comment
         if (value != null) {
             val item = db.checklistItemQueries.getItemById(itemId).executeAsOneOrNull()
-            val min = item?.minValue
-            val max = item?.maxValue
-            if ((min != null && value < min) || (max != null && value > max)) {
+            val limits = MeasurementLimits(item?.minValue, item?.maxValue)
+            if (item != null && !limits.isEmpty && !limits.contains(value)) {
                 finalResult = ItemResult.MANGELFULL
                 if (finalComment.isNullOrBlank()) {
-                    // Vi er inne i grensen er overskredet-grenen, så item finnes
                     val unit = item.unit.orEmpty()
-                    finalComment = buildString {
-                        append("Avlest $reading $unit er utenfor grense")
-                        if (min != null) append(" (min ${fmt(min)})")
-                        if (max != null) append(" (maks ${fmt(max)})")
-                    }
+                    finalComment =
+                        "Avlest $reading $unit er utenfor grense${limits.describe()}"
                 }
             }
         }
@@ -282,18 +280,15 @@ class ChecklistRepository(private val db: AppDatabase) {
             // Lukk tidligere åpne avvik: OK nå = RECHECK, nytt avvik = SUPERSEDED
             if (finalResult == ItemResult.JA) {
                 db.checklistResponseQueries.resolveEarlierDeficiencies(
-                    itemId, runId, currentTimeMillis(), reading, "RECHECK",
+                    itemId, runId, currentTimeMillis(), reading, ResolvedVia.RECHECK.db,
                 )
             } else {
                 db.checklistResponseQueries.resolveEarlierDeficiencies(
-                    itemId, runId, currentTimeMillis(), null, "SUPERSEDED",
+                    itemId, runId, currentTimeMillis(), null, ResolvedVia.SUPERSEDED.db,
                 )
             }
         }
     }
-
-    private fun fmt(value: Double): String =
-        if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
 
     /**
      * Signerer før-vakt-delen. Kontrollen forblir åpen – vakta er ikke over
@@ -309,7 +304,7 @@ class ChecklistRepository(private val db: AppDatabase) {
                 "Ukjent mannskaps-ID"
             }
             val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
-            check(run != null && run.status == "IN_PROGRESS") {
+            check(run != null && run.status == RunStatus.IN_PROGRESS.db) {
                 "Kontrollen er allerede lukket"
             }
             check(run.beforeSignedAt == null) { "Før-vakt-delen er allerede signert" }
@@ -336,7 +331,7 @@ class ChecklistRepository(private val db: AppDatabase) {
     @Throws(IllegalStateException::class, CancellationException::class)
     suspend fun reopenBeforeShift(runId: String) = withContext(Dispatchers.Default) {
         val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
-        check(run != null && run.status == "IN_PROGRESS") {
+        check(run != null && run.status == RunStatus.IN_PROGRESS.db) {
             "Kontrollen er lukket og kan ikke endres"
         }
         db.checklistRunQueries.reopenBeforeShift(runId, currentTimeMillis())
@@ -369,7 +364,7 @@ class ChecklistRepository(private val db: AppDatabase) {
         withContext(Dispatchers.Default) {
             require(userId.isNotBlank()) { "Mannskaps-ID er påkrevd" }
             val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
-            check(run != null && run.status == "IN_PROGRESS") {
+            check(run != null && run.status == RunStatus.IN_PROGRESS.db) {
                 "Sjekklisten er allerede lukket"
             }
             // To-fase-signering gjelder bare lister som faktisk har
@@ -475,12 +470,9 @@ class ChecklistRepository(private val db: AppDatabase) {
                 val value = requireNotNull(newReading?.toDoubleOrNull()) {
                     "Ny avlest verdi er påkrevd"
                 }
-                val min = item.minValue
-                val max = item.maxValue
-                check((min == null || value >= min) && (max == null || value <= max)) {
-                    "Verdien er fortsatt utenfor grense" +
-                        (min?.let { " (min ${fmt(it)})" } ?: "") +
-                        (max?.let { " (maks ${fmt(it)})" } ?: "")
+                val limits = MeasurementLimits(item.minValue, item.maxValue)
+                check(limits.contains(value)) {
+                    "Verdien er fortsatt utenfor grense${limits.describe()}"
                 }
                 reading = newReading
             }

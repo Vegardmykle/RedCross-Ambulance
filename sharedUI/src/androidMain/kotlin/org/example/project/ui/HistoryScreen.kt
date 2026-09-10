@@ -36,6 +36,8 @@ import database.GetRecentRuns
 import database.GetResponsesWithItemsForRun
 import org.example.project.Screen
 import org.example.project.data.ChecklistRepository
+import org.example.project.model.ResolvedVia
+import org.example.project.model.RunStatus
 
 @Composable
 internal fun HistoryRunCard(run: GetRecentRuns, onClick: () -> Unit) {
@@ -83,22 +85,21 @@ internal fun HistoryRunCard(run: GetRecentRuns, onClick: () -> Unit) {
     }
 }
 
-private fun statusText(status: String) = when (status) {
-    "COMPLETED" -> "Signert"
-    "EXPIRED" -> "Utløpt – ikke signert"
-    else -> "Pågår"
-}
+// En status appen ikke kjenner kan komme fra en nyere versjon via synk.
+// Den vises som ukjent i stedet for å bli presentert som «Pågår», som ville
+// antydet at kontrollen kan tas opp igjen.
+private fun statusText(status: String) =
+    RunStatus.fromDb(status)?.label ?: "Ukjent status"
 
 /** Ikon i tillegg til farge, så statusen kan leses uten fargesyn. */
-private fun statusIcon(status: String) = when (status) {
-    "COMPLETED" -> Icons.Default.CheckCircle
-    "EXPIRED" -> Icons.Default.Schedule
+private fun statusIcon(status: String) = when (RunStatus.fromDb(status)) {
+    RunStatus.COMPLETED -> Icons.Default.CheckCircle
+    RunStatus.EXPIRED -> Icons.Default.Schedule
     else -> Icons.Default.HourglassEmpty
 }
 
-private fun statusColor(status: String) = when (status) {
-    "COMPLETED" -> RkGreen
-    "EXPIRED" -> RkOrange
+private fun statusColor(status: String) = when (RunStatus.fromDb(status)) {
+    RunStatus.COMPLETED -> RkGreen
     else -> RkOrange
 }
 
@@ -192,7 +193,7 @@ fun RunDetailScreen(
 @Composable
 private fun ResponseDetailCard(response: GetResponsesWithItemsForRun) {
     val isResolved = response.resolved != 0L
-    val isSuperseded = response.resolvedVia == "SUPERSEDED"
+    val isSuperseded = ResolvedVia.fromDb(response.resolvedVia) == ResolvedVia.SUPERSEDED
 
     val badgeText = when {
         isSuperseded -> "Videreført"
@@ -223,9 +224,9 @@ private fun ResponseDetailCard(response: GetResponsesWithItemsForRun) {
             val resolvedAt = response.resolvedAt
             if (isResolved && resolvedAt != null) {
                 val was = "Var ${resultLabel(response.result).lowercase()}"
-                val how = when (response.resolvedVia) {
-                    "RECHECK" -> "OK ved senere kontroll"
-                    "SUPERSEDED" -> "videreført til senere kontroll"
+                val how = when (ResolvedVia.fromDb(response.resolvedVia)) {
+                    ResolvedVia.RECHECK -> "OK ved senere kontroll"
+                    ResolvedVia.SUPERSEDED -> "videreført til senere kontroll"
                     else -> response.resolvedByName?.let { "løst av $it" } ?: "løst manuelt"
                 }
                 var text = "$was · $how ${formatMillis(resolvedAt)}"

@@ -128,6 +128,12 @@ WHERE id = ?1 AND status = 'IN_PROGRESS';
 
 -- Vakter der før-delen er signert, men avslutningen mangler. Vises som
 -- påminnelse til noen tar den.
+--
+-- Statusfilteret er nødvendig: expireRun setter EXPIRED og lar completedAt
+-- være NULL, så en utløpt vakt ville ellers blitt stående som påminnelse for
+-- alltid – og den kan aldri kvitteres ut, siden completeRun krever
+-- IN_PROGRESS. En påminnelse som ikke kan lukkes blir til slutt ignorert
+-- også når den er ekte.
 getRunsAwaitingClosure:
 SELECT ChecklistRun.*, ChecklistTemplate.name AS templateName, Ambulance.callSign,
     User.name AS beforeSignedByName
@@ -137,4 +143,5 @@ JOIN Ambulance ON Ambulance.id = ChecklistRun.ambulanceId
 LEFT JOIN User ON User.id = ChecklistRun.beforeUserId
 WHERE ChecklistRun.beforeSignedAt IS NOT NULL
   AND ChecklistRun.completedAt IS NULL
+  AND ChecklistRun.status = 'IN_PROGRESS'
 ORDER BY ChecklistRun.createdAt DESC;

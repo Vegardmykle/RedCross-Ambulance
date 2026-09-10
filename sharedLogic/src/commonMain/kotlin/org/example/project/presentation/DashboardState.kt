@@ -47,7 +47,7 @@ data class DashboardState(
  * om denne.
  */
 fun dashboardState(
-    latestCompletedAt: Map<String, Long?>,
+    latestCompletedAt: Map<String, Long>,
     startOfToday: Long,
     startOfWeek: Long,
     startOfMonth: Long,

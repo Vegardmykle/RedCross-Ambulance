@@ -424,10 +424,15 @@ class ChecklistRepository(private val db: AppDatabase) {
      * Det brøt sammen både når arkivet vokste forbi 50 rader og fordi det så
      * bort fra hvilken bil kontrollen gjaldt.
      */
-    fun latestCompletedByType(ambulanceId: String): Flow<Map<String, Long?>> =
+    fun latestCompletedByType(ambulanceId: String): Flow<Map<String, Long>> =
         db.checklistRunQueries.latestCompletedRunByType(ambulanceId)
             .asFlow().mapToList(Dispatchers.Default)
-            .map { rows -> rows.associate { it.templateType to it.completedAt } }
+            // Spørringa filtrerer bort NULL, men MAX() gjør at SQLDelight
+            // likevel typer kolonnen nullable. En listetype uten fullført
+            // kontroll skal mangle fra kartet, ikke ligge der med null-verdi.
+            .map { rows ->
+                rows.mapNotNull { row -> row.completedAt?.let { row.templateType to it } }.toMap()
+            }
 
     // ---------- Mangler ----------
 

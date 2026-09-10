@@ -10,7 +10,7 @@ struct DashboardView: View {
     /// Vakter der før-kontrollen er signert, men avslutningen aldri ble gjort
     @State private var awaitingClosure: [GetRunsAwaitingClosure] = []
     /// Når hver listetype sist ble fullført for valgt kjøretøy
-    @State private var latestCompletedByType: [String: KotlinLong?] = [:]
+    @State private var latestCompletedByType: [String: KotlinLong] = [:]
     @AppStorage("selectedAmbulanceId") private var selectedAmbulanceId = ""
     @State private var isSyncing = false
     @State private var syncError: String?
@@ -333,7 +333,8 @@ struct DashboardView: View {
 
     private func isDone(_ template: ChecklistTemplate) -> Bool {
         guard let type = TemplateType.companion.fromDb(value: template.type),
-              let check = status.statusFor(type: type) else { return false }
+              let check = status.statusFor(type: type)
+        else { return false }
         return check.isDone
     }
 

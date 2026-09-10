@@ -26,7 +26,7 @@ class DashboardStateTest {
     private val startOfWeek = 2_000_000L
     private val startOfToday = 3_000_000L
 
-    private fun state(vararg latest: Pair<TemplateType, Long?>) = dashboardState(
+    private fun state(vararg latest: Pair<TemplateType, Long>) = dashboardState(
         latestCompletedAt = latest.associate { (type, at) -> type.db to at },
         startOfToday = startOfToday,
         startOfWeek = startOfWeek,

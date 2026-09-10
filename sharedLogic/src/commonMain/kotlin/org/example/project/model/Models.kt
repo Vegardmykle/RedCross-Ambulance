@@ -59,6 +59,11 @@ enum class TemplateType(val db: String, val label: String) {
     BAG("BAG", "Sekk/taske");
 
     companion object {
-        fun fromDb(value: String): TemplateType = entries.first { it.db == value }
+        /**
+         * Ukjent verdi gir null. Typen kommer fra databasen og kan være skrevet
+         * av en nyere appversjon via synk – da skal skjermen la være å vise
+         * status, ikke krasje. (Tidligere kastet denne NoSuchElementException.)
+         */
+        fun fromDb(value: String?): TemplateType? = entries.firstOrNull { it.db == value }
     }
 }

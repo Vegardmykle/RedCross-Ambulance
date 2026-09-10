@@ -1,0 +1,15 @@
+-- Lokal bokføring for synkroniseringen. Synkes aldri selv – den beskriver
+-- denne enhetens forhold til skyen, ikke noe de andre bilene skal vite om.
+CREATE TABLE SyncState (
+    key TEXT NOT NULL PRIMARY KEY,
+    value INTEGER NOT NULL
+);
+
+getSyncValue:
+SELECT value
+FROM SyncState
+WHERE key = ?1;
+
+setSyncValue:
+INSERT OR REPLACE INTO SyncState(key, value)
+VALUES (?1, ?2);

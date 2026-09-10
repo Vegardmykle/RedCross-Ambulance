@@ -134,8 +134,9 @@ migrasjonene og `.sq`-filene ikke ender opp med samme skjema.
 ./gradlew :sharedLogic:testAndroidHostTest
 ```
 
-66 tester dekker det som har konsekvenser hvis det svikter: signering og
-fullføring, grenseverdier på målinger og avvikslivssyklusen. Hver test kjører
+112 tester dekker det som har konsekvenser hvis det svikter: signering og
+fullføring, grenseverdier på målinger, avvikslivssyklusen, tilstanden
+sjekklisteskjermen viser, og at migrasjonene faktisk kan leses etterpå. Hver test kjører
 mot en egen SQLite-database i minnet – ingen emulator eller nettverk.
 [`diagrams/test-coverage.md`](diagrams/test-coverage.md) viser hva som er
 dekket, hva som ikke er det, og hvilken manuell testing som kompenserer.
@@ -152,7 +153,11 @@ dekket, hva som ikke er det, og hvilken manuell testing som kompenserer.
 
 ## Kjente begrensninger
 
-- Synk krever manuell utløsning (synk-knapp / pull-to-refresh) eller
-  app-start; ingen kontinuerlig lytting mot Firestore ennå
+- Ingen kontinuerlig lytting mot Firestore ennå: synk skjer ved appstart, når
+  noe delbart endres, og når mannskapet trykker synkknappen eller drar for å
+  oppdatere
+- `updatedAt` settes fra klokka på enheten som skrev raden, ikke fra serveren.
+  Den inkrementelle hentingen kompenserer med et døgns overlapp, men et
+  server-tidsstempel ville vært mer robust dersom flere enheter tas i bruk
 - Dagsgrensen i `startOrResumeRun` er ikke automatisk testet (krever
   klokkeinjeksjon – øverst på lista i test-coverage.md)

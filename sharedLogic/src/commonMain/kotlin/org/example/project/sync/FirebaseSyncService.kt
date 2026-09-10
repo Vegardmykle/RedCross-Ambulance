@@ -13,6 +13,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.example.project.db.AppDatabase
+import org.example.project.util.currentTimeMillis
 
 /**
  * Synkronisering mot Firestore.
@@ -77,6 +78,9 @@ class FirebaseSyncService(private val db: AppDatabase) {
     @Throws(Exception::class, kotlin.coroutines.cancellation.CancellationException::class)
     suspend fun syncAll() = syncMutex.withLock {
         _status.value = SyncStatus.Syncing
+        // Leses før hentingen, ikke etter: endringer som skjer mens synken
+        // pågår skal fanges av neste runde, ikke hoppes over.
+        val startedAt = currentTimeMillis()
         try {
             log("start")
             ensureSignedIn()
@@ -95,6 +99,11 @@ class FirebaseSyncService(private val db: AppDatabase) {
             // stopper resten
             pushLocalChanges()
             log("push ferdig (${lastPushFailures} avvist)")
+
+            // Bokføres først når hentingen faktisk lyktes. Feiler den, står
+            // det gamle merket, og neste forsøk henter samme periode om igjen
+            // i stedet for å hoppe over den.
+            db.syncStateQueries.setSyncValue(LAST_PULL_KEY, startedAt)
 
             _status.value = if (lastPushFailures > 0) {
                 SyncStatus.Error(
@@ -130,6 +139,57 @@ class FirebaseSyncService(private val db: AppDatabase) {
             message.contains("offline") ||
             message.contains("host")
     }
+
+    internal companion object {
+        const val LAST_PULL_KEY = "lastPullAt"
+
+        /**
+         * Hvor langt tilbake før forrige henting vi likevel spør om.
+         *
+         * updatedAt settes fra klokka på enheten som skrev raden, ikke fra
+         * serveren. To enheter med litt ulik klokke kan derfor skrive en rad
+         * med et tidsstempel som ligger før forrige hentetidspunkt – og uten
+         * overlapp ville den raden aldri blitt hentet. Et døgn dekker all
+         * realistisk klokkeavvik, og koster lite: det er bare gårsdagens
+         * kontroll i tillegg.
+         */
+        const val PULL_OVERLAP_MILLIS: Long = 24 * 60 * 60 * 1000
+    }
+
+    /**
+     * Tidspunktet inkrementell henting skal spørre fra, gitt forrige
+     * hentetidspunkt.
+     *
+     * Null inn gir null ut, som betyr hent alt: enten er dette første synk
+     * etter installasjon, eller enheten er nettopp oppgradert og vet ikke hva
+     * den har gått glipp av. Da er full henting det eneste forsvarlige.
+     *
+     * Skilt ut som en ren funksjon fordi regelen er verdt å låse med en test –
+     * en for smal grense her betyr at rader aldri hentes.
+     */
+    internal fun pullSinceFor(lastPull: Long?): Long? =
+        lastPull?.let { (it - PULL_OVERLAP_MILLIS).coerceAtLeast(0) }
+
+    private fun pullSince(): Long? =
+        pullSinceFor(db.syncStateQueries.getSyncValue(LAST_PULL_KEY).executeAsOneOrNull())
+
+    /**
+     * Kjøringene som skal hentes. [since] = null henter alt.
+     *
+     * Filteret krever ingen egendefinert Firestore-indeks: enkeltfelt-indekser
+     * opprettes automatisk, og her filtreres det på ett felt uten sortering.
+     */
+    private fun runsQuery(since: Long?) =
+        firestore.collection("runs").let { collection ->
+            if (since == null) collection
+            else collection.where { "updatedAt" greaterThanOrEqualTo since }
+        }
+
+    private fun responsesQuery(since: Long?) =
+        firestore.collection("responses").let { collection ->
+            if (since == null) collection
+            else collection.where { "updatedAt" greaterThanOrEqualTo since }
+        }
 
     /** Synlig i Xcode-konsollen (iOS) og logcat (Android): filtrer på «[Sync]». */
     private fun log(message: String) {
@@ -304,7 +364,13 @@ class FirebaseSyncService(private val db: AppDatabase) {
                 )
             }
         }
-        firestore.collection("runs").get().documents.forEach { doc ->
+        // Kjøringer og svar er de eneste kolleksjonene som vokser monotont.
+        // Resten er små og hentes i sin helhet over.
+        val since = pullSince()
+        log(if (since == null) "pull: full henting av kjøringer og svar"
+            else "pull: kjøringer og svar endret etter $since")
+
+        runsQuery(since).get().documents.forEach { doc ->
             val dto = doc.data(RunDto.serializer())
             val local = db.checklistRunQueries.getRunById(dto.id).executeAsOneOrNull()
             if (local == null || dto.updatedAt > local.updatedAt) {
@@ -315,7 +381,7 @@ class FirebaseSyncService(private val db: AppDatabase) {
                 )
             }
         }
-        firestore.collection("responses").get().documents.forEach { doc ->
+        responsesQuery(since).get().documents.forEach { doc ->
             val dto = doc.data(ResponseDto.serializer())
             val local = db.checklistResponseQueries.getResponseById(dto.id).executeAsOneOrNull()
             if (local == null || dto.updatedAt > local.updatedAt) {

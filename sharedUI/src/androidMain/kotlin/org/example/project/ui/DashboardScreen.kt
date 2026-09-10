@@ -53,10 +53,12 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.example.project.Screen
+import kotlinx.coroutines.flow.flowOf
 import org.example.project.data.ChecklistRepository
-import org.example.project.model.RunStatus
-import org.example.project.util.currentTimeMillis
+import org.example.project.presentation.dashboardState
+import org.example.project.util.startOfMonthMillis
 import org.example.project.util.startOfTodayMillis
+import org.example.project.util.startOfWeekMillis
 
 @Composable
 fun DashboardScreen(
@@ -78,16 +80,21 @@ fun DashboardScreen(
     // Uten dette ville en glemt avslutning bare forsvunnet i stillhet.
     val awaitingClosure by repo.runsAwaitingClosure().collectAsState(emptyList())
     val openShift = awaitingClosure.firstOrNull { it.ambulanceId == ambulance?.id }
-    val typeById = templates.associate { it.id to it.type }
+    // Periodestatus for valgt kjøretøy. Regelen ligger i sharedLogic og deles
+    // med iOS; grensene er kalenderbaserte, så en ukessjekk gjelder ut uka.
+    val latestByType by remember(ambulance?.id) {
+        ambulance?.let { repo.latestCompletedByType(it.id) } ?: flowOf(emptyMap())
+    }.collectAsState(emptyMap())
 
-    fun latestCompleted(type: String): Long? = runs
-        .filter { it.status == RunStatus.COMPLETED.db && typeById[it.templateId] == type }
-        .mapNotNull { it.completedAt }
-        .maxOrNull()
-
-    val dailyDone = (latestCompleted("DAILY") ?: 0L) >= startOfTodayMillis()
-    val weeklyDone = (latestCompleted("WEEKLY") ?: 0L) >= currentTimeMillis() - 7L * 24 * 3600_000
-    val monthlyDone = (latestCompleted("MONTHLY") ?: 0L) >= currentTimeMillis() - 30L * 24 * 3600_000
+    val status = dashboardState(
+        latestCompletedAt = latestByType,
+        startOfToday = startOfTodayMillis(),
+        startOfWeek = startOfWeekMillis(),
+        startOfMonth = startOfMonthMillis(),
+    )
+    val dailyDone = status.daily.isDone
+    val weeklyDone = status.weekly.isDone
+    val monthlyDone = status.monthly.isDone
 
     val isCompact = LocalIsCompact.current
 

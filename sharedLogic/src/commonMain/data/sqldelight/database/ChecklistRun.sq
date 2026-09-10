@@ -93,6 +93,23 @@ WHERE EXISTS (
 ORDER BY createdAt DESC
 LIMIT ?1;
 
+-- Siste fullførte kontroll per listetype for ett kjøretøy.
+--
+-- Dashbordet regnet dette ut ved å filtrere de 50 siste kontrollene på
+-- klienten. Det ga to feil: passerte det 50 kontroller siden forrige
+-- ukessjekk, falt merket stille tilbake til «VENTER», og filteret så bort fra
+-- hvilken ambulanse kontrollen gjaldt – var ambulanse 1 kontrollert, viste
+-- ambulanse 2 også «FULLFØRT». For en app som skal dokumentere at hver enkelt
+-- bil er kontrollert, er det siste det alvorligste.
+latestCompletedRunByType:
+SELECT ChecklistTemplate.type AS templateType, MAX(ChecklistRun.completedAt) AS completedAt
+FROM ChecklistRun
+JOIN ChecklistTemplate ON ChecklistTemplate.id = ChecklistRun.templateId
+WHERE ChecklistRun.ambulanceId = ?1
+  AND ChecklistRun.status = 'COMPLETED'
+  AND ChecklistRun.completedAt IS NOT NULL
+GROUP BY ChecklistTemplate.type;
+
 countResponsesForRunId:
 SELECT COUNT(*)
 FROM ChecklistResponse

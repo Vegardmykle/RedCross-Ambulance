@@ -9,6 +9,8 @@ struct DashboardView: View {
     @State private var links: [AppLink] = []
     /// Vakter der før-kontrollen er signert, men avslutningen aldri ble gjort
     @State private var awaitingClosure: [GetRunsAwaitingClosure] = []
+    /// Når hver listetype sist ble fullført for valgt kjøretøy
+    @State private var latestCompletedByType: [String: KotlinLong?] = [:]
     @AppStorage("selectedAmbulanceId") private var selectedAmbulanceId = ""
     @State private var isSyncing = false
     @State private var syncError: String?
@@ -31,7 +33,19 @@ struct DashboardView: View {
     }
 
     private var dailyTemplate: ChecklistTemplate? {
-        templates.first { $0.type == "DAILY" }
+        templates.first { $0.type == TemplateType.daily.db }
+    }
+
+    /// Periodestatus for valgt kjøretøy. Regelen ligger i sharedLogic, så
+    /// iOS og Android leser den likt – tidligere hadde iOS ingen regel i det
+    /// hele tatt og viste et fastspikret «Ikke påbegynt».
+    private var status: DashboardState {
+        DashboardStateKt.dashboardState(
+            latestCompletedAt: latestCompletedByType,
+            startOfToday: TimeUtil_iosKt.startOfTodayMillis(),
+            startOfWeek: TimeUtil_iosKt.startOfWeekMillis(),
+            startOfMonth: TimeUtil_iosKt.startOfMonthMillis()
+        )
     }
 
     var body: some View {
@@ -90,6 +104,12 @@ struct DashboardView: View {
                 awaitingClosure = list
             }
         }
+        .task(id: selectedAmbulanceId) {
+            guard !selectedAmbulanceId.isEmpty else { return }
+            for await map in repo.latestCompletedByType(ambulanceId: selectedAmbulanceId) {
+                latestCompletedByType = map
+            }
+        }
         .task {
             // SKIE gjør sealed interface om til en Swift-enum vi kan switche på
             for await status in AppDependencies.shared.syncService.status {
@@ -116,7 +136,7 @@ struct DashboardView: View {
     private var openShiftCard: some View {
         if let openShift = awaitingClosure.first(where: { $0.ambulanceId == selectedAmbulance?.id }) {
             NavigationLink {
-                ChecklistRunScreen(templateType: "DAILY")
+                ChecklistRunScreen(templateType: TemplateType.daily.db)
             } label: {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
@@ -227,14 +247,18 @@ struct DashboardView: View {
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                 Spacer()
-                Text("Ikke påbegynt")
-                    .font(.caption2)
-                    .fontWeight(.medium)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.rkErrorContainer)
-                    .foregroundStyle(Color.rkError)
-                    .clipShape(Capsule())
+                let done = status.daily.isDone
+                Label(
+                    done ? "Fullført" : "Ikke påbegynt",
+                    systemImage: done ? "checkmark.seal.fill" : "exclamationmark.triangle.fill"
+                )
+                .font(.caption2)
+                .fontWeight(.medium)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(done ? Color.green.opacity(0.15) : Color.rkErrorContainer)
+                .foregroundStyle(done ? Color.green : Color.rkError)
+                .clipShape(Capsule())
             }
 
             if let daily = dailyTemplate, let ambulance = selectedAmbulance {
@@ -242,7 +266,7 @@ struct DashboardView: View {
                     .font(.body)
 
                 NavigationLink {
-                    ChecklistRunScreen(templateType: "DAILY")
+                    ChecklistRunScreen(templateType: TemplateType.daily.db)
                 } label: {
                     Label("Start sjekkliste", systemImage: "play.fill")
                         .fontWeight(.semibold)
@@ -270,14 +294,20 @@ struct DashboardView: View {
                 .textCase(.uppercase)
 
             HStack(spacing: 12) {
-                ForEach(templates.filter { $0.type == "WEEKLY" || $0.type == "MONTHLY" }, id: \.id) { template in
+                ForEach(periodicTemplates, id: \.id) { template in
                     NavigationLink {
                         ChecklistRunScreen(templateType: template.type)
                     } label: {
-                        Label(
-                            template.name,
-                            systemImage: template.type == "WEEKLY" ? "calendar" : "calendar.badge.clock"
-                        )
+                        VStack(spacing: 4) {
+                            Label(
+                                template.name,
+                                systemImage: template.type == TemplateType.weekly.db
+                                    ? "calendar" : "calendar.badge.clock"
+                            )
+                            Text(isDone(template) ? "Fullført" : "Venter")
+                                .font(.caption2)
+                                .foregroundStyle(isDone(template) ? .green : .secondary)
+                        }
                         .frame(maxWidth: .infinity, minHeight: 44)
                     }
                     .buttonStyle(.bordered)
@@ -293,6 +323,18 @@ struct DashboardView: View {
             .buttonStyle(.bordered)
             .tint(.rkPrimary)
         }
+    }
+
+    private var periodicTemplates: [ChecklistTemplate] {
+        templates.filter {
+            $0.type == TemplateType.weekly.db || $0.type == TemplateType.monthly.db
+        }
+    }
+
+    private func isDone(_ template: ChecklistTemplate) -> Bool {
+        guard let type = TemplateType.companion.fromDb(value: template.type),
+              let check = status.statusFor(type: type) else { return false }
+        return check.isDone
     }
 
     private var quickLinksSection: some View {

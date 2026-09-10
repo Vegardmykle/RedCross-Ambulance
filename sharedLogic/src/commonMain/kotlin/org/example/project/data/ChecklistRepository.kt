@@ -416,6 +416,19 @@ class ChecklistRepository(private val db: AppDatabase) {
         db.checklistRunQueries.getRecentRuns(limit)
             .asFlow().mapToList(Dispatchers.Default)
 
+    /**
+     * Når hver listetype sist ble fullført for ett kjøretøy, som
+     * `TemplateType.db` -> tidspunkt.
+     *
+     * Dashbordet utledet dette ved å filtrere de 50 siste kontrollene i UI-et.
+     * Det brøt sammen både når arkivet vokste forbi 50 rader og fordi det så
+     * bort fra hvilken bil kontrollen gjaldt.
+     */
+    fun latestCompletedByType(ambulanceId: String): Flow<Map<String, Long?>> =
+        db.checklistRunQueries.latestCompletedRunByType(ambulanceId)
+            .asFlow().mapToList(Dispatchers.Default)
+            .map { rows -> rows.associate { it.templateType to it.completedAt } }
+
     // ---------- Mangler ----------
 
     /** Punkter som har åpne avvik fra tidligere kontroller (vises som varsel i ny kjøring). */

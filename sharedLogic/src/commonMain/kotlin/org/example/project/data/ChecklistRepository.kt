@@ -17,6 +17,7 @@ import database.GetRunsAwaitingClosure
 import database.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.example.project.db.AppDatabase
@@ -409,24 +410,26 @@ class ChecklistRepository(private val db: AppDatabase) {
         db.checklistResponseQueries.getItemIdsWithOpenDeficiencies(ambulanceId, excludeRunId)
             .asFlow().mapToList(Dispatchers.Default)
 
+    /**
+     * Åpne avvik, hvert med sporing tilbake til den første meldingen.
+     *
+     * [flowOn] er nødvendig, ikke pynt: mapToList flytter bare selve
+     * spørringen til bakgrunn, mens operatorene nedenfor kjører der
+     * strømmen samles inn – på Android er det hovedtråden. Uten den ville
+     * oppslaget av kjeden per rad blitt blokkerende disk-I/O i UI-tråden.
+     */
     fun openDeficiencies(): Flow<List<OpenDeficiency>> =
         db.checklistResponseQueries.getOpenDeficiencies()
             .asFlow().mapToList(Dispatchers.Default)
             .map { rows -> rows.map { it.toOpenDeficiency() } }
+            .flowOn(Dispatchers.Default)
 
     private fun GetOpenDeficiencies.toOpenDeficiency(): OpenDeficiency {
-        // Følg videreført-kjeden bakover til den opprinnelige meldingen
-        var currentRunId = checklistRunId
-        var earliestAt: Long? = null
-        var earliestBy: String? = null
-        while (true) {
-            val prev = db.checklistResponseQueries
-                .getSupersededPredecessor(itemId, currentRunId)
-                .executeAsOneOrNull() ?: break
-            earliestAt = prev.checkedAt
-            earliestBy = prev.signedByName
-            currentRunId = prev.checklistRunId
-        }
+        // Én spørring følger hele videreført-kjeden tilbake til den første
+        // meldingen; tidligere var dette én spørring per ledd.
+        val origin = db.checklistResponseQueries
+            .getDeficiencyChainOrigin(itemId, checklistRunId)
+            .executeAsOneOrNull()
         return OpenDeficiency(
             id = id,
             result = result,
@@ -441,8 +444,8 @@ class ChecklistRepository(private val db: AppDatabase) {
             listName = listName,
             callSign = callSign,
             signedByName = signedByName,
-            firstReportedAt = earliestAt,
-            firstReportedByName = earliestBy,
+            firstReportedAt = origin?.firstReportedAt,
+            firstReportedByName = origin?.firstReportedByName,
         )
     }
 

@@ -93,7 +93,6 @@ internal fun ResolveDialog(
     repo: ChecklistRepository,
     deficiency: OpenDeficiency,
     onDismiss: () -> Unit,
-    onResolved: (() -> Unit)? = null,
 ) {
     val users by repo.users().collectAsState(emptyList())
     var crewId by remember { mutableStateOf("") }
@@ -153,12 +152,7 @@ internal fun ResolveDialog(
                             error = e.message ?: "Sjekk at verdien er innenfor grensene$limits."
                             false
                         }
-                        // Synk utenfor try: den er lagret lokalt uansett, og
-                        // en synkfeil skal ikke se ut som en valideringsfeil
-                        if (saved) {
-                            onResolved?.invoke()
-                            onDismiss()
-                        }
+                        if (saved) onDismiss()
                     }
                 },
             ) { Text("Marker som løst") }

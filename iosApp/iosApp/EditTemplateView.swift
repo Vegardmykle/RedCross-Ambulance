@@ -321,7 +321,6 @@ struct MoveBagSheet: View {
         Task {
             do {
                 try await repo.moveBag(bagId: bag.id, newParentId: target.id)
-                AppDependencies.shared.syncService.requestSync()
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription

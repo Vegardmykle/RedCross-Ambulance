@@ -36,8 +36,23 @@ import org.example.project.util.randomId
  * Alt UI-laget trenger for å lese og skrive sjekklister.
  * Lesing eksponeres som Flow (oppdateres automatisk ved endringer),
  * skriving er suspend-funksjoner.
+ *
+ * [onLocalChange] kalles når noe som skal deles med de andre enhetene er
+ * endret. Utløseren hører hjemme her, ikke i UI-et: da glemmes den ikke på en
+ * skjerm. Tidligere ble en callback tredd gjennom Compose-hierarkiet, og to
+ * skjermer på Android fikk den aldri – maleditering og administrasjon ble
+ * dermed ikke sendt videre før neste appstart, mens iOS sendte dem med én
+ * gang. Samme app, ulik oppførsel.
+ *
+ * Svar på enkeltpunkter utløser bevisst ikke synk: mannskapet krysser av
+ * hundrevis av punkter i løpet av en kontroll, og de sendes samlet når
+ * kontrollen signeres. Radene står som usynkede i mellomtiden, så ingenting
+ * går tapt.
  */
-class ChecklistRepository(private val db: AppDatabase) {
+class ChecklistRepository(
+    private val db: AppDatabase,
+    private val onLocalChange: () -> Unit = {},
+) {
 
     companion object {
         /**
@@ -84,12 +99,14 @@ class ChecklistRepository(private val db: AppDatabase) {
     ): String = withContext(Dispatchers.Default) {
         val id = randomId()
         db.checklistTemplateQueries.insertTemplate(id, name, type.db, parentId, 0, currentTimeMillis())
+        onLocalChange()
         id
     }
 
     suspend fun renameTemplate(id: String, name: String): Unit =
         withContext(Dispatchers.Default) {
             db.checklistTemplateQueries.updateTemplateName(id, name, currentTimeMillis())
+            onLocalChange()
         }
 
     /**
@@ -119,6 +136,7 @@ class ChecklistRepository(private val db: AppDatabase) {
         db.checklistTemplateQueries.moveTemplateToParent(
             bagId, newParentId, next, currentTimeMillis(),
         )
+        onLocalChange()
     }
 
     /** Sletter (soft) mal, dens punkter og eventuelle sekker med innhold. */
@@ -132,6 +150,7 @@ class ChecklistRepository(private val db: AppDatabase) {
             db.checklistItemQueries.deleteItemsForTemplate(id, now)
             db.checklistTemplateQueries.deleteTemplate(id, now)
         }
+        onLocalChange()
     }
 
     suspend fun addItem(
@@ -152,6 +171,7 @@ class ChecklistRepository(private val db: AppDatabase) {
             if (requiresValue) 1L else 0L, unit, minValue, maxValue, next,
             phase.db, currentTimeMillis(),
         )
+        onLocalChange()
         id
     }
 
@@ -171,10 +191,12 @@ class ChecklistRepository(private val db: AppDatabase) {
             if (requiresValue) 1L else 0L, unit, minValue, maxValue, phase.db,
             currentTimeMillis(),
         )
+        onLocalChange()
     }
 
     suspend fun deleteItem(id: String): Unit = withContext(Dispatchers.Default) {
         db.checklistItemQueries.deleteItem(id, currentTimeMillis())
+        onLocalChange()
     }
 
     /** Setter ny rekkefølge: itemIds i ønsket rekkefølge får sortOrder 1, 2, 3 … */
@@ -185,6 +207,7 @@ class ChecklistRepository(private val db: AppDatabase) {
                 db.checklistItemQueries.updateItemSortOrder(id, (index + 1).toLong(), now)
             }
         }
+        onLocalChange()
     }
 
     // ---------- Kjøringer ----------
@@ -336,6 +359,7 @@ class ChecklistRepository(private val db: AppDatabase) {
             }
 
             db.checklistRunQueries.signBeforeShift(runId, currentTimeMillis(), userId)
+            onLocalChange()
         }
 
     /**
@@ -349,6 +373,7 @@ class ChecklistRepository(private val db: AppDatabase) {
             "Kontrollen er lukket og kan ikke endres"
         }
         db.checklistRunQueries.reopenBeforeShift(runId, currentTimeMillis())
+        onLocalChange()
     }
 
     /**
@@ -405,6 +430,7 @@ class ChecklistRepository(private val db: AppDatabase) {
                 "Alle punkter må besvares før signering ($answered av $expected)"
             }
             db.checklistRunQueries.completeRun(runId, currentTimeMillis(), userId, comment)
+            onLocalChange()
         }
 
     /** Til arkivet: alle svar i en kjøring, med punkttittel og liste/sekk-navn. */
@@ -512,6 +538,7 @@ class ChecklistRepository(private val db: AppDatabase) {
             }
 
             db.checklistResponseQueries.resolveDeficiency(responseId, currentTimeMillis(), reading, userId)
+            onLocalChange()
         }
 
     // ---------- Mannskap ----------
@@ -526,10 +553,12 @@ class ChecklistRepository(private val db: AppDatabase) {
         withContext(Dispatchers.Default) {
             require(id.isNotBlank()) { "Mannskaps-ID er påkrevd" }
             db.userQueries.insertUser(id, name, role, currentTimeMillis())
+            onLocalChange()
         }
 
     suspend fun deleteUser(id: String): Unit = withContext(Dispatchers.Default) {
         db.userQueries.deleteUser(id, currentTimeMillis())
+        onLocalChange()
     }
 
     // ---------- Ambulanser ----------
@@ -542,11 +571,13 @@ class ChecklistRepository(private val db: AppDatabase) {
         withContext(Dispatchers.Default) {
             val id = randomId()
             db.ambulanceQueries.insertAmbulance(id, callSign, registrationNumber, currentTimeMillis())
+            onLocalChange()
             id
         }
 
     suspend fun deleteAmbulance(id: String): Unit = withContext(Dispatchers.Default) {
         db.ambulanceQueries.deleteAmbulance(id, currentTimeMillis())
+        onLocalChange()
     }
 
     // ---------- Lenker ----------
@@ -559,16 +590,19 @@ class ChecklistRepository(private val db: AppDatabase) {
         withContext(Dispatchers.Default) {
             val id = randomId()
             db.appLinkQueries.insertLink(id, title, url, sortOrder, currentTimeMillis())
+            onLocalChange()
             id
         }
 
     suspend fun updateLink(id: String, title: String, url: String): Unit =
         withContext(Dispatchers.Default) {
             db.appLinkQueries.updateLink(id, title, url, currentTimeMillis())
+            onLocalChange()
         }
 
     suspend fun deleteLink(id: String): Unit = withContext(Dispatchers.Default) {
         db.appLinkQueries.deleteLink(id, currentTimeMillis())
+        onLocalChange()
     }
 
     // ---------- Dokumenter ----------
@@ -581,15 +615,18 @@ class ChecklistRepository(private val db: AppDatabase) {
         withContext(Dispatchers.Default) {
             val id = randomId()
             db.documentQueries.insertDocument(id, title, uri, sortOrder, currentTimeMillis())
+            onLocalChange()
             id
         }
 
     suspend fun updateDocument(id: String, title: String, uri: String): Unit =
         withContext(Dispatchers.Default) {
             db.documentQueries.updateDocument(id, title, uri, currentTimeMillis())
+            onLocalChange()
         }
 
     suspend fun deleteDocument(id: String): Unit = withContext(Dispatchers.Default) {
         db.documentQueries.deleteDocument(id, currentTimeMillis())
+        onLocalChange()
     }
 }

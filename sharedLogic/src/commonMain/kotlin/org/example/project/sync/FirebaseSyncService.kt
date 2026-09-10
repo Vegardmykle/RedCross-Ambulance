@@ -50,6 +50,29 @@ class FirebaseSyncService(private val db: AppDatabase) {
         syncScope.launch { syncAll() }
     }
 
+    /**
+     * Oppstartsrutinen: hent først, seed bare hvis databasen fortsatt er tom,
+     * send deretter.
+     *
+     * Rekkefølgen er poenget. Seedes det før pull, lager to enheter som settes
+     * opp samtidig hver sin kopi av standardlistene. Kjøres på synkens egen
+     * scope, som overlever at skjermen eller aktiviteten som startet den
+     * forsvinner.
+     */
+    fun requestInitialSync(seedIfEmpty: suspend () -> Unit) {
+        syncScope.launch {
+            syncAll()
+            try {
+                seedIfEmpty()
+            } catch (e: Exception) {
+                // En feilet seeding skal ikke hindre at det som allerede
+                // ligger lokalt blir sendt videre
+                log("seeding feilet: ${e.message}")
+            }
+            syncAll()
+        }
+    }
+
     /** Push + pull med statusoppdatering. Kalles ved appstart og etter signering. */
     @Throws(Exception::class, kotlin.coroutines.cancellation.CancellationException::class)
     suspend fun syncAll() = syncMutex.withLock {

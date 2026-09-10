@@ -166,7 +166,6 @@ struct ResolveSheetView: View {
                     newReading: reading
                 )
                 saving = false
-                AppDependencies.shared.syncService.requestSync()
                 dismiss()
             } catch {
                 saving = false

@@ -54,6 +54,7 @@ import database.GetRecentRuns
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import org.example.project.data.ChecklistRepository
+import org.example.project.model.TemplateType
 import org.example.project.storage.DocumentStorage
 import org.example.project.sync.SyncStatus
 import org.example.project.ui.ArchiveScreen
@@ -97,11 +98,12 @@ fun App(
     documentStorage: DocumentStorage,
     onRequestPdfImport: (() -> Unit)? = null,
     /**
-     * Utløser synkronisering. Må startes på en scope som overlever
-     * skjermbytter – ikke på en Compose-scope, som kanselleres når
-     * skjermen forlates og dermed dreper synken midt i en push.
+     * Henter data fra skyen på forespørsel – synkknappen og pull-to-refresh.
+     *
+     * Endringer mannskapet gjør sendes ikke herfra: repositoryet varsler
+     * synken selv, så ingen skjerm kan glemme det.
      */
-    onSyncRequest: (() -> Unit)? = null,
+    onRefresh: (() -> Unit)? = null,
     syncStatus: Flow<SyncStatus>? = null,
 ) {
     RkTheme {
@@ -125,7 +127,7 @@ fun App(
         val isOffline = status is SyncStatus.Offline
         val isSyncing = status is SyncStatus.Syncing
 
-        val refresh: (() -> Unit)? = onSyncRequest
+        val refresh: (() -> Unit)? = onRefresh
 
         val content: @Composable () -> Unit = {
             when (val screen = stack.lastOrNull()) {
@@ -136,15 +138,13 @@ fun App(
                         onGoToArchive = { tab = 2 },
                     )
                     1 -> ChecklistRunScreen(
-                        repository, "DAILY", onOpen = push, onBack = null,
-                        onSyncRequest = onSyncRequest,
+                        repository, TemplateType.DAILY.db, onOpen = push, onBack = null,
                     )
-                    2 -> ArchiveScreen(repository, onOpen = push, onSyncRequest = onSyncRequest)
+                    2 -> ArchiveScreen(repository, onOpen = push)
                     else -> ResourcesScreen(repository, documentStorage, onRequestPdfImport)
                 }
                 is Screen.Run -> ChecklistRunScreen(
                     repository, screen.templateType, onOpen = push, onBack = pop,
-                    onSyncRequest = onSyncRequest,
                 )
                 is Screen.RunDetail -> RunDetailScreen(repository, screen.run, onBack = pop)
                 is Screen.EditTemplate -> EditTemplateScreen(repository, screen.template, onBack = pop)

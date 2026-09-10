@@ -77,7 +77,6 @@ fun ChecklistRunScreen(
     templateType: String,
     onOpen: (Screen) -> Unit,
     onBack: (() -> Unit)?,
-    onSyncRequest: (() -> Unit)? = null,
 ) {
     val templates by repo.topLevelTemplates().collectAsState(emptyList())
     val template = templates.firstOrNull { it.type == templateType }
@@ -384,17 +383,11 @@ fun ChecklistRunScreen(
                     if (signingBefore) {
                         repo.signBeforeShift(r.id, userId)
                         run = repo.startOrResumeRun(t.id, r.ambulanceId)
-                        onSyncRequest?.invoke()
                         return@SignDialog true
                     }
                     repo.completeRun(r.id, userId, null)
                     justCompleted = true
                     run = repo.startOrResumeRun(t.id, r.ambulanceId)
-
-                    // Synk skjer i bakgrunnen på en scope som overlever at
-                    // denne skjermen forlates, og kan aldri gjøre en vellykket
-                    // signering om til en feilmelding
-                    onSyncRequest?.invoke()
                     true
                 } catch (e: Exception) {
                     saveError = e.message ?: "Kunne ikke signere"

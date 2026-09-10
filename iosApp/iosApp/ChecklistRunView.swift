@@ -55,10 +55,11 @@ struct ChecklistRunScreen: View {
 
     @State private var template: ChecklistTemplate?
     @State private var run: ChecklistRun?
-    @State private var items: [ChecklistItem] = []
+    /// Hele treet – hovedliste og sekker. Fremdriften må kjenne sekkepunktene
+    /// også når sekkene ikke vises, altså etter at før-delen er signert.
+    @State private var treeItems: [ChecklistItem] = []
     @State private var bags: [ChecklistTemplate] = []
-    @State private var bagItems: [String: [ChecklistItem]] = [:]
-    @State private var responses: [String: ChecklistResponse] = [:]
+    @State private var responseList: [ChecklistResponse] = []
     @State private var earlierDeficiencyItemIds: Set<String> = []
     @State private var showSignSheet = false
     @State private var justCompleted = false
@@ -70,47 +71,23 @@ struct ChecklistRunScreen: View {
     /// Hvilken del signeringsarket gjelder
     @State private var signPhase: ChecklistPhase = .before
 
-    private var allItems: [ChecklistItem] {
-        items + bagItems.values.flatMap { $0 }
+    /// Oppslag til radene. Selve utledningen skjer i `state`.
+    private var responses: [String: ChecklistResponse] {
+        Dictionary(responseList.map { ($0.itemId, $0) }, uniquingKeysWith: { _, last in last })
     }
 
-    private var answeredCount: Int {
-        allItems.filter { responses[$0.id] != nil }.count
+    /// All utledning skjer ett sted, delt med Android-appen: fasedeling,
+    /// tellere, om delene kan signeres, og hvilke avvik som meldes.
+    private var state: ChecklistRunState {
+        ChecklistRunStateKt.checklistRunState(
+            rootTemplateId: template?.id ?? "",
+            items: treeItems,
+            responses: responseList,
+            run: run
+        )
     }
 
-    private var allAnswered: Bool {
-        !allItems.isEmpty && answeredCount == allItems.count
-    }
-
-    // MARK: - To faser
-    //
-    // Vakta kontrolleres i to trinn: utstyret før vakt, avslutningen etterpå.
-    // Har lista ingen etter-punkter (ukentlig, månedlig) beholdes én signatur.
-
-    private func inPhase(_ list: [ChecklistItem], _ phase: ChecklistPhase) -> [ChecklistItem] {
-        list.filter { ChecklistPhase.companion.fromDb(value: $0.phase) == phase }
-    }
-
-    private var beforeItems: [ChecklistItem] { inPhase(items, .before) }
-    private var afterItems: [ChecklistItem] { inPhase(allItems, .after) }
-    private var beforeAll: [ChecklistItem] { inPhase(allItems, .before) }
-
-    private var hasAfterPhase: Bool { !afterItems.isEmpty }
-
-    private var beforeAnswered: Int {
-        beforeAll.filter { responses[$0.id] != nil }.count
-    }
-
-    private var beforeComplete: Bool {
-        !beforeAll.isEmpty && beforeAnswered == beforeAll.count
-    }
-
-    private var afterAnswered: Int {
-        afterItems.filter { responses[$0.id] != nil }.count
-    }
-
-    private var beforeSignedAt: Int64? { run?.beforeSignedAt?.int64Value }
-    private var beforeSigned: Bool { beforeSignedAt != nil }
+    private var beforeSignedAt: Int64? { state.beforeSignedAt?.int64Value }
 
     private var beforeSignedByName: String? {
         guard let id = run?.beforeUserId else { return nil }
@@ -132,7 +109,7 @@ struct ChecklistRunScreen: View {
             .task { await observeTemplates() }
             .task { await observeCrew() }
             .task(id: runStartKey) { await startRunIfReady() }
-            .task(id: templateKey) { await observeItems() }
+            .task(id: templateKey) { await observeTreeItems() }
             .task(id: templateKey) { await observeBags() }
             .task(id: runKey) { await observeResponses() }
             .task(id: runKey) { await observeEarlierDeficiencies() }
@@ -170,7 +147,7 @@ struct ChecklistRunScreen: View {
 
     @ViewBuilder
     private var beforePhaseContent: some View {
-        if beforeSigned {
+        if state.beforeSigned {
             beforeSignedSummary
         } else {
             equipmentSection
@@ -181,7 +158,7 @@ struct ChecklistRunScreen: View {
 
     @ViewBuilder
     private var afterPhaseContent: some View {
-        if hasAfterPhase {
+        if state.hasAfterPhase {
             afterSection
             afterSignSection
         }
@@ -189,7 +166,7 @@ struct ChecklistRunScreen: View {
 
     private var equipmentSection: some View {
         Section {
-            ForEach(inFixedOrder(beforeItems), id: \.id) { item in
+            ForEach(state.beforeItems, id: \.id) { item in
                 ChecklistItemRow(
                     item: item,
                     response: responses[item.id],
@@ -201,9 +178,9 @@ struct ChecklistRunScreen: View {
             }
         } header: {
             HStack {
-                Text(hasAfterPhase ? "Før vakt" : "Utstyr")
+                Text(state.hasAfterPhase ? "Før vakt" : "Utstyr")
                 Spacer()
-                Text("\(beforeAnswered) av \(beforeAll.count)")
+                Text("\(state.before.answered) av \(state.before.total)")
                     .foregroundStyle(.secondary)
             }
         }
@@ -239,7 +216,7 @@ struct ChecklistRunScreen: View {
 
     private var afterSection: some View {
         Section {
-            ForEach(inFixedOrder(afterItems), id: \.id) { item in
+            ForEach(state.afterItems, id: \.id) { item in
                 ChecklistItemRow(
                     item: item,
                     response: responses[item.id],
@@ -253,11 +230,11 @@ struct ChecklistRunScreen: View {
             HStack {
                 Text("Etter vakt")
                 Spacer()
-                Text("\(afterAnswered) av \(afterItems.count)")
+                Text("\(state.after.answered) av \(state.after.total)")
                     .foregroundStyle(.secondary)
             }
         } footer: {
-            Text(beforeSigned
+            Text(state.beforeSigned
                  ? "Fylles ut når vakta er ferdig."
                  : "Gjøres ved vaktslutt – etter at før-kontrollen er signert.")
         }
@@ -279,7 +256,6 @@ struct ChecklistRunScreen: View {
                 bag: bag,
                 responses: responses,
                 earlierDeficiencyItemIds: earlierDeficiencyItemIds,
-                onItemsChange: { bagItems[bag.id] = $0 },
                 onAnswer: { item, choice, comment, reading in
                     await answer(item: item, choice: choice, comment: comment, reading: reading)
                 }
@@ -313,7 +289,7 @@ struct ChecklistRunScreen: View {
         return SignSheetView(
             title: signingBefore ? "Signer før vakt" : "Signer og avslutt vakt",
             // Vis bare avvikene fra den delen som faktisk signeres
-            deficiencies: signingBefore ? deficiencies(in: beforeAll) : deficiencies(in: allItems),
+            deficiencies: signingBefore ? state.beforeDeficiencies : state.allDeficiencies,
             onSign: { userId in
                 signingBefore
                     ? await signBefore(userId: userId)
@@ -366,10 +342,10 @@ struct ChecklistRunScreen: View {
         await loadRun(templateId: template.id)
     }
 
-    private func observeItems() async {
+    private func observeTreeItems() async {
         guard let template else { return }
-        for await list in repo.itemsFor(templateId: template.id) {
-            items = list
+        for await list in repo.itemsForTemplateTree(templateId: template.id) {
+            treeItems = list
         }
     }
 
@@ -383,7 +359,7 @@ struct ChecklistRunScreen: View {
     private func observeResponses() async {
         guard let run else { return }
         for await list in repo.responsesForRun(runId: run.id) {
-            responses = Dictionary(uniqueKeysWithValues: list.map { ($0.itemId, $0) })
+            responseList = list
         }
     }
 
@@ -404,9 +380,9 @@ struct ChecklistRunScreen: View {
                     Label("Sjekkliste signert og lukket", systemImage: "checkmark.seal.fill")
                         .foregroundStyle(.green)
                 }
-                ProgressView(value: Double(answeredCount), total: Double(max(allItems.count, 1)))
+                ProgressView(value: Double(state.overall.fraction))
                     .tint(.rkPrimary)
-                Text("\(answeredCount) av \(allItems.count) punkter besvart")
+                Text("\(state.overall.answered) av \(state.overall.total) punkter besvart")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -414,14 +390,14 @@ struct ChecklistRunScreen: View {
     }
 
     private var beforeSignSection: some View {
-        let canSign = hasAfterPhase ? beforeComplete : allAnswered
+        let canSign = state.canSignBefore
         return Section {
             Button {
-                signPhase = hasAfterPhase ? .before : .after
+                signPhase = state.hasAfterPhase ? .before : .after
                 showSignSheet = true
             } label: {
                 Label(
-                    hasAfterPhase ? "Signer før vakt" : "Signer og fullfør",
+                    state.hasAfterPhase ? "Signer før vakt" : "Signer og fullfør",
                     systemImage: "signature"
                 )
                 .fontWeight(.semibold)
@@ -441,7 +417,7 @@ struct ChecklistRunScreen: View {
     }
 
     private var afterSignSection: some View {
-        let canSign = beforeSigned && allAnswered
+        let canSign = state.canComplete
         return Section {
             Button {
                 signPhase = .after
@@ -455,29 +431,17 @@ struct ChecklistRunScreen: View {
             .buttonStyle(.borderedProminent)
             .disabled(!canSign)
 
-            if !beforeSigned {
+            if !state.beforeSigned {
                 Text("Før-kontrollen må signeres først.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            } else if !allAnswered {
+            } else if !state.overall.isComplete {
                 Text("Du må svare på alle punkter før du kan avslutte vakta.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .listRowBackground(Color.clear)
-    }
-
-    private func deficiencies(in list: [ChecklistItem]) -> [DeficiencySummary] {
-        list.compactMap { item in
-            guard let response = responses[item.id], response.result != "JA" else { return nil }
-            return DeficiencySummary(
-                id: item.id,
-                title: item.title,
-                result: AnswerChoice(rawValue: response.result)?.label ?? response.result,
-                comment: response.comment
-            )
-        }
     }
 
     private func loadRun(templateId: String) async {
@@ -487,17 +451,6 @@ struct ChecklistRunScreen: View {
             templateId: templateId,
             ambulanceId: selectedAmbulanceId
         )
-    }
-
-    /// Punktene står i fast rekkefølge mens kontrollen pågår.
-    ///
-    /// Tidligere sank besvarte punkter til bunnen, men da flyttet innholdet seg
-    /// under fingeren på mannskapet: du sikter på ett punkt, lista hopper, og du
-    /// treffer et annet. Særlig uheldig med hansker, i bevegelse, eller for
-    /// brukere med nedsatt syn eller skjelvinger. Rekkefølgen følger nå
-    /// sortOrder, som er den rekkefølgen utstyret ligger i bilen.
-    private func inFixedOrder(_ list: [ChecklistItem]) -> [ChecklistItem] {
-        list.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     private func answer(item: ChecklistItem, choice: AnswerChoice, comment: String?, reading: String?) async {
@@ -649,7 +602,6 @@ struct BagSection: View {
     let bag: ChecklistTemplate
     let responses: [String: ChecklistResponse]
     var earlierDeficiencyItemIds: Set<String> = []
-    let onItemsChange: ([ChecklistItem]) -> Void
     let onAnswer: (ChecklistItem, AnswerChoice, String?, String?) async -> Void
 
     private let repo = AppDependencies.shared.repository
@@ -691,17 +643,15 @@ struct BagSection: View {
         .task {
             for await list in repo.itemsFor(templateId: bag.id) {
                 items = list
-                onItemsChange(list)
             }
         }
     }
 }
 
-struct DeficiencySummary: Identifiable {
-    let id: String
-    let title: String
-    let result: String
-    let comment: String?
+// DeficiencySummary er definert i sharedLogic og deles med Android.
+// Identifiable lar den brukes direkte i ForEach.
+extension DeficiencySummary: Identifiable {
+    public var id: String { itemId }
 }
 
 struct SignSheetView: View {
@@ -732,7 +682,7 @@ struct SignSheetView: View {
                     } else {
                         ForEach(deficiencies) { deficiency in
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("\(deficiency.title) – \(deficiency.result)")
+                                Text("\(deficiency.title) – \(deficiency.resultLabel)")
                                     .font(.subheadline)
                                     .fontWeight(.medium)
                                 if let comment = deficiency.comment {

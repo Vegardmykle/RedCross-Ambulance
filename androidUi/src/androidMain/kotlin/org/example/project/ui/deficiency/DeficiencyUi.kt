@@ -1,4 +1,4 @@
-package org.example.project.ui
+package org.example.project.ui.deficiency
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,6 +36,15 @@ import org.example.project.model.MeasurementLimits
 import org.example.project.model.OpenDeficiency
 import org.example.project.model.filterNumeric
 import org.example.project.model.normalizeNumber
+import org.example.project.ui.archive.ArchiveScreen
+import org.example.project.ui.design.ResultBadge
+import org.example.project.ui.design.RkError
+import org.example.project.ui.design.RkGreen
+import org.example.project.ui.design.RkOrange
+import org.example.project.ui.design.formatMillis
+import org.example.project.ui.design.resultColor
+import org.example.project.ui.design.resultIcon
+import org.example.project.ui.design.resultLabel
 
 // Åpne mangler vises som en seksjon i ArchiveScreen, ikke som egen skjerm.
 // Kortet og løs-dialogen nedenfor er delene som faktisk brukes.

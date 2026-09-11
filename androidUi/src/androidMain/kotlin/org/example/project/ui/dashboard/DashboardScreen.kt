@@ -1,4 +1,4 @@
-package org.example.project.ui
+package org.example.project.ui.dashboard
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,8 +20,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MedicalServices
@@ -52,10 +52,20 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import org.example.project.Screen
 import kotlinx.coroutines.flow.flowOf
 import org.example.project.data.ChecklistRepository
 import org.example.project.presentation.dashboardState
+import org.example.project.ui.design.LocalIsCompact
+import org.example.project.ui.design.ResultBadge
+import org.example.project.ui.design.RkError
+import org.example.project.ui.design.RkGreen
+import org.example.project.ui.design.RkOrange
+import org.example.project.ui.design.RkRed
+import org.example.project.ui.design.formatMillis
+import org.example.project.ui.design.normalizeUrl
+import org.example.project.ui.design.screenPadding
+import org.example.project.ui.shell.LocalAmbulanceSelection
+import org.example.project.ui.shell.Screen
 import org.example.project.util.startOfMonthMillis
 import org.example.project.util.startOfTodayMillis
 import org.example.project.util.startOfWeekMillis

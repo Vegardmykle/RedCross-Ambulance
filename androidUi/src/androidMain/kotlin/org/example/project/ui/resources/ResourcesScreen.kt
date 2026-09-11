@@ -1,4 +1,4 @@
-package org.example.project.ui
+package org.example.project.ui.resources
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,9 +16,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LocalHospital
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
@@ -46,6 +46,12 @@ import database.Document
 import kotlinx.coroutines.launch
 import org.example.project.data.ChecklistRepository
 import org.example.project.storage.DocumentStorage
+import org.example.project.ui.design.ResultBadge
+import org.example.project.ui.design.RkOrange
+import org.example.project.ui.design.RkRed
+import org.example.project.ui.design.TabletContainer
+import org.example.project.ui.design.normalizeUrl
+import org.example.project.ui.shell.rememberBuildInfo
 
 /**
  * Viser versjon og miljø nederst. Under testing kjører test- og

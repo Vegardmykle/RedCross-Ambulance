@@ -1,4 +1,4 @@
-package org.example.project.ui
+package org.example.project.ui.design
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -28,10 +28,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import org.example.project.model.ItemResult
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import org.example.project.model.ItemResult
 
 // Farger fra designet (DESIGN.md).
 // Grønn og oransje er mørknet for å nå WCAG-kontrastkrav mot lys bakgrunn

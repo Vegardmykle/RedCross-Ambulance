@@ -1,4 +1,4 @@
-package org.example.project.ui
+package org.example.project.ui.shell
 
 import android.content.Context
 import android.content.pm.ApplicationInfo

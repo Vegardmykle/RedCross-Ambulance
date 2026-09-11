@@ -1,4 +1,4 @@
-package org.example.project.ui
+package org.example.project.ui.template
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -56,9 +56,11 @@ import kotlinx.coroutines.launch
 import org.example.project.data.ChecklistRepository
 import org.example.project.model.ChecklistPhase
 import org.example.project.model.MeasurementLimits
+import org.example.project.model.TemplateType
 import org.example.project.model.filterNumeric
 import org.example.project.model.formatNumber
-import org.example.project.model.TemplateType
+import org.example.project.ui.design.RkRed
+import org.example.project.ui.design.TabletContainer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

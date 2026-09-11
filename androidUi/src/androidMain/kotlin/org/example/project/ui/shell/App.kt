@@ -1,4 +1,4 @@
-package org.example.project
+package org.example.project.ui.shell
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -57,20 +57,18 @@ import org.example.project.data.ChecklistRepository
 import org.example.project.model.TemplateType
 import org.example.project.storage.DocumentStorage
 import org.example.project.sync.SyncStatus
-import org.example.project.ui.ArchiveScreen
-import org.example.project.ui.ChecklistRunScreen
-import org.example.project.ui.CompactWidthBreakpoint
-import org.example.project.ui.DashboardScreen
-import org.example.project.ui.EditTemplateScreen
-import org.example.project.ui.LocalAmbulanceSelection
-import org.example.project.ui.LocalIsCompact
-import org.example.project.ui.rememberAmbulanceSelection
-import org.example.project.ui.ResourcesScreen
-import org.example.project.ui.RkError
-import org.example.project.ui.RkErrorContainer
-import org.example.project.ui.RkRed
-import org.example.project.ui.RkTheme
-import org.example.project.ui.RunDetailScreen
+import org.example.project.ui.archive.ArchiveScreen
+import org.example.project.ui.archive.RunDetailScreen
+import org.example.project.ui.dashboard.DashboardScreen
+import org.example.project.ui.design.CompactWidthBreakpoint
+import org.example.project.ui.design.LocalIsCompact
+import org.example.project.ui.design.RkError
+import org.example.project.ui.design.RkErrorContainer
+import org.example.project.ui.design.RkRed
+import org.example.project.ui.design.RkTheme
+import org.example.project.ui.resources.ResourcesScreen
+import org.example.project.ui.run.ChecklistRunScreen
+import org.example.project.ui.template.EditTemplateScreen
 
 sealed interface Screen {
     data class Run(val templateType: String) : Screen

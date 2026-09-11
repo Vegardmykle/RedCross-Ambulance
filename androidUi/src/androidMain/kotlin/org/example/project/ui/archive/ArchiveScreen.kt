@@ -1,4 +1,4 @@
-package org.example.project.ui
+package org.example.project.ui.archive
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -27,9 +27,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import org.example.project.Screen
 import org.example.project.data.ChecklistRepository
 import org.example.project.model.OpenDeficiency
+import org.example.project.ui.deficiency.DeficiencyCard
+import org.example.project.ui.deficiency.ResolveDialog
+import org.example.project.ui.design.LocalIsCompact
+import org.example.project.ui.design.ResultBadge
+import org.example.project.ui.design.RkError
+import org.example.project.ui.design.RkGreen
+import org.example.project.ui.design.RkRed
+import org.example.project.ui.design.screenPadding
+import org.example.project.ui.shell.Screen
 
 /**
  * Kombinert administrativ side: åpne mangler + siste sjekklister.

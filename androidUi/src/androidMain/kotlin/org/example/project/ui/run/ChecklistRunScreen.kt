@@ -1,13 +1,15 @@
-package org.example.project.ui
+package org.example.project.ui.run
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,8 +23,6 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -61,7 +61,6 @@ import database.ChecklistRun
 import database.ChecklistTemplate
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
-import org.example.project.Screen
 import org.example.project.data.ChecklistRepository
 import org.example.project.model.ChecklistPhase
 import org.example.project.model.ItemResult
@@ -69,6 +68,17 @@ import org.example.project.model.filterNumeric
 import org.example.project.model.normalizeNumber
 import org.example.project.presentation.DeficiencySummary
 import org.example.project.presentation.checklistRunState
+import org.example.project.ui.design.ResultBadge
+import org.example.project.ui.design.RkError
+import org.example.project.ui.design.RkGreen
+import org.example.project.ui.design.RkOrange
+import org.example.project.ui.design.RkRed
+import org.example.project.ui.design.TabletContainer
+import org.example.project.ui.design.formatMillis
+import org.example.project.ui.design.resultColor
+import org.example.project.ui.design.resultIcon
+import org.example.project.ui.shell.LocalAmbulanceSelection
+import org.example.project.ui.shell.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

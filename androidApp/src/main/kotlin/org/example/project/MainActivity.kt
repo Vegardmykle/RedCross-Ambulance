@@ -16,6 +16,7 @@ import org.example.project.data.DatabaseSeeder
 import org.example.project.data.createDriver
 import org.example.project.db.AppDatabase
 import org.example.project.storage.AndroidDocumentStorage
+import org.example.project.ui.shell.App
 import org.example.project.sync.FirebaseSyncService
 
 class MainActivity : ComponentActivity() {

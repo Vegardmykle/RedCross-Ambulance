@@ -1,4 +1,4 @@
-package org.example.project.ui
+package org.example.project.ui.archive
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -34,14 +34,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import database.GetRecentRuns
 import database.GetResponsesWithItemsForRun
-import org.example.project.Screen
 import org.example.project.data.ChecklistRepository
 import org.example.project.model.RunStatus
 import org.example.project.presentation.DeviationOutcome
 import org.example.project.presentation.ResponseOutcome
 import org.example.project.presentation.deviationSummary
-import org.example.project.presentation.responseBadge
 import org.example.project.presentation.resolutionText
+import org.example.project.presentation.responseBadge
+import org.example.project.ui.design.ResultBadge
+import org.example.project.ui.design.RkError
+import org.example.project.ui.design.RkGreen
+import org.example.project.ui.design.RkOrange
+import org.example.project.ui.design.TabletContainer
+import org.example.project.ui.design.formatMillis
+import org.example.project.ui.design.resultColor
+import org.example.project.ui.design.resultIcon
+import org.example.project.ui.shell.Screen
 
 @Composable
 internal fun HistoryRunCard(run: GetRecentRuns, onClick: () -> Unit) {

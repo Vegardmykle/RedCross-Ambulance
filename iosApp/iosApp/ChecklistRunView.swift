@@ -241,13 +241,7 @@ struct ChecklistRunScreen: View {
     }
 
     private func signatureText(at millis: Int64, by name: String?) -> String {
-        let date = Date(timeIntervalSince1970: Double(millis) / 1000)
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "nb_NO")
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        let time = formatter.string(from: date)
-        return name.map { "\(time) av \($0)" } ?? time
+        AppDate.format(millis, by: name)
     }
 
     private var bagSectionsView: some View {

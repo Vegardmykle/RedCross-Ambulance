@@ -48,14 +48,7 @@ struct RunDetailView: View {
         }
     }
 
-    static func format(_ millis: Int64) -> String {
-        let date = Date(timeIntervalSince1970: Double(millis) / 1000)
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "nb_NO")
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
-    }
+    static func format(_ millis: Int64) -> String { AppDate.format(millis) }
 }
 
 struct ResponseDetailRow: View {

@@ -165,15 +165,8 @@ struct DashboardView: View {
     private func openShiftDetail(_ run: GetRunsAwaitingClosure) -> String {
         // Spørringen filtrerer på beforeSignedAt IS NOT NULL, så SQLDelight
         // utleder feltet som ikke-nullbart her
-        let millis = run.beforeSignedAt
-        let date = Date(timeIntervalSince1970: Double(millis) / 1000)
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "nb_NO")
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        var text = "Før-kontrollen ble signert \(formatter.string(from: date))"
-        if let name = run.beforeSignedByName { text += " av \(name)" }
-        return text + ". Etter-vakt-kontrollen gjenstår."
+        let signed = AppDate.format(run.beforeSignedAt, by: run.beforeSignedByName)
+        return "Før-kontrollen ble signert \(signed). Etter-vakt-kontrollen gjenstår."
     }
 
     /// Uten dekning fungerer appen som normalt – alt lagres lokalt og sendes

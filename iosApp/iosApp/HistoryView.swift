@@ -52,13 +52,7 @@ struct HistoryRow: View {
     }
 
     private var dateText: String {
-        let millis = run.completedAt?.int64Value ?? run.createdAt
-        let date = Date(timeIntervalSince1970: Double(millis) / 1000)
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "nb_NO")
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+        AppDate.format(run.completedAt?.int64Value ?? run.createdAt)
     }
 
     /// Sammendraget regnes ut i sharedLogic – regnestykket bak «åpne avvik»

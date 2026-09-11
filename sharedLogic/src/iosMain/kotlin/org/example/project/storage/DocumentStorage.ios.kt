@@ -54,6 +54,30 @@ class IosDocumentStorage : DocumentStorage {
         return path
     }
 
+    /**
+     * Kopierer en fil som allerede ligger på enheten inn i appens
+     * dokumentmappe, og returnerer den nye stien.
+     *
+     * Finnes i tillegg til [save] fordi iOS får PDF-en som en URL fra
+     * filvelgeren. Å lese den inn i minnet og sende bytene gjennom [save]
+     * ville betydd å flytte hver enkelt byte over språkgrensen – en PDF på
+     * noen megabyte blir da millioner av kall. Her gjør NSFileManager
+     * kopieringen i ett.
+     *
+     * Poenget er ikke ytelsen alene: uten denne gjorde ResourcesView
+     * filhåndteringen selv, og da var det viewet, ikke lagringslaget, som
+     * bestemte hvor dokumentene havnet.
+     */
+    fun saveFrom(sourcePath: String, fileName: String): String {
+        val target = "${documentsDir()}/$fileName"
+        val manager = NSFileManager.defaultManager
+        if (manager.fileExistsAtPath(target)) {
+            manager.removeItemAtPath(target, error = null)
+        }
+        manager.copyItemAtPath(sourcePath, toPath = target, error = null)
+        return target
+    }
+
     override fun exists(path: String): Boolean =
         NSFileManager.defaultManager.fileExistsAtPath(path)
 

@@ -1,29 +1,48 @@
-Versjon 1.3 – sjekklista er delt i før og etter vakt
+Versjon 1.4 – rettelser i status, telling og oppfølging
 
-Nytt i denne versjonen:
+Denne versjonen inneholder ingen nye funksjoner, men retter en del ting
+som viste feil eller misvisende informasjon.
 
-- Den daglige sjekklista er nå delt i to: "Før vakt" og "Etter vakt".
-  Punktene som hører til avslutningen ligger for seg selv nederst.
+Sjekklista:
 
-- Vakta signeres to ganger. Du signerer før-kontrollen ved vaktstart.
-  Da legger den seg sammen som en grønn linje med navn og tidspunkt, og
-  du ser bare avslutningspunktene som gjenstår.
+- Punkter som ligger i sekker og tasker telles nå med i fremdriften også
+  etter at før-kontrollen er signert. Tidligere falt de ut av telleren, og
+  "alle punkter besvart" kunne bli stående selv om noe gjensto i en sekk.
 
-- Dashbordet varsler "Vakt ikke avsluttet" hvis noen har signert
-  før-kontrollen uten å avslutte vakta. Neste mannskap ser det med en gang.
+- Knappen for å avslutte vakta ble i de tilfellene aktiv for tidlig, og ga
+  en feilmelding først etter at du hadde trykket. Nå stemmer knappen med
+  det som faktisk mangler.
 
-- Avslutningen kan signeres av et annet mannskap enn den som startet
-  vakta. Vaktbytte skal ikke gjøre at kontrollen blir stående åpen.
+Dashbordet:
 
-- Har du oppdaget noe i etterkant, kan før-kontrollen gjenåpnes og endres
-  helt til vakta avsluttes.
+- På iPhone og iPad sto "Dagens gjøremål" alltid som "Ikke påbegynt", også
+  rett etter at kontrollen var signert. Nå vises riktig status.
 
-- Ukentlig og månedlig sjekkliste er uendret – de signeres én gang som før.
+- Statusen gjelder nå den bilen du har valgt. Tidligere kunne en kontroll
+  gjort på én ambulanse få en annen til å se kontrollert ut.
 
-Andre forbedringer:
+- "Vakt ikke avsluttet" blir ikke lenger stående for alltid på vakter som
+  har gått ut på tid. En påminnelse ingen kan kvittere ut blir til slutt
+  ignorert også når den er ekte.
 
-- Arkivet viser hvem som signerte før og etter vakta, med tidspunkt.
-- Punktene står nå i fast rekkefølge. Tidligere flyttet de seg nedover
-  når du svarte ja, slik at lista kunne hoppe under fingeren.
+- Ukentlig og månedlig sjekk følger nå kalenderuke og kalendermåned.
+  Ukessjekken gjelder altså ut uka, ikke i sju døgn fra klokkeslettet den
+  ble signert. Månedlig var tidligere "siste 30 dager".
+
+Mangler:
+
+- Avvik på punkter som er fjernet fra lista vises ikke lenger. De kunne
+  ikke lukkes, siden punktet ikke fantes å kontrollere.
+
+- Mangler-siden henter raskere fram hvor lenge et avvik har vært åpent.
+
+Synkronisering:
+
+- Synk skjer nå også når noen endrer sjekklista, legger til mannskap eller
+  kjøretøy. Tidligere ble slike endringer på Android liggende til appen ble
+  startet på nytt.
+
+- Synkroniseringen henter mindre data hver gang og går raskere etter hvert
+  som arkivet vokser.
 
 Meld fra om feil til Vegard.

@@ -59,6 +59,8 @@ import org.example.project.model.MeasurementLimits
 import org.example.project.model.TemplateType
 import org.example.project.model.filterNumeric
 import org.example.project.model.formatNumber
+import org.example.project.ui.design.ConfirmDialog
+import org.example.project.ui.design.MessageDialog
 import org.example.project.ui.design.RkRed
 import org.example.project.ui.design.TabletContainer
 
@@ -324,40 +326,24 @@ private fun EditSection(
     }
 
     moveError?.let { message ->
-        AlertDialog(
-            onDismissRequest = { moveError = null },
-            title = { Text("Kunne ikke flytte") },
-            text = { Text(message) },
-            confirmButton = { TextButton(onClick = { moveError = null }) { Text("OK") } },
-        )
+        MessageDialog("Kunne ikke flytte", message) { moveError = null }
     }
 
     if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Slette ${template.name}?") },
-            text = { Text("Sekken og alt innhold slettes.") },
-            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Avbryt") } },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch { repo.deleteTemplate(template.id) }
-                    showDeleteConfirm = false
-                }) { Text("Slett") }
-            },
+        ConfirmDialog(
+            title = "Slette ${template.name}?",
+            text = "Sekken og alt innhold slettes.",
+            onDismiss = { showDeleteConfirm = false },
+            onConfirm = { scope.launch { repo.deleteTemplate(template.id) } },
         )
     }
 
     deleteItemTarget?.let { item ->
-        AlertDialog(
-            onDismissRequest = { deleteItemTarget = null },
-            title = { Text("Slette «${item.title}»?") },
-            dismissButton = { TextButton(onClick = { deleteItemTarget = null }) { Text("Avbryt") } },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch { repo.deleteItem(item.id) }
-                    deleteItemTarget = null
-                }) { Text("Slett") }
-            },
+        ConfirmDialog(
+            title = "Slette «${item.title}»?",
+            text = "Punktet forsvinner fra lista. Tidligere kontroller beholder svaret.",
+            onDismiss = { deleteItemTarget = null },
+            onConfirm = { scope.launch { repo.deleteItem(item.id) } },
         )
     }
 }

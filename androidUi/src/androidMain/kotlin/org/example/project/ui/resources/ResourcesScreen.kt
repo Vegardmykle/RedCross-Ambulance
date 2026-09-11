@@ -46,6 +46,8 @@ import database.Document
 import kotlinx.coroutines.launch
 import org.example.project.data.ChecklistRepository
 import org.example.project.storage.DocumentStorage
+import org.example.project.ui.design.ConfirmDialog
+import org.example.project.ui.design.MessageDialog
 import org.example.project.ui.design.ResultBadge
 import org.example.project.ui.design.RkOrange
 import org.example.project.ui.design.RkRed
@@ -293,19 +295,15 @@ fun ResourcesScreen(
     }
 
     deleteDocTarget?.let { document ->
-        AlertDialog(
-            onDismissRequest = { deleteDocTarget = null },
-            title = { Text("Slette «${document.title}»?") },
-            text = { Text("PDF-en fjernes fra appen.") },
-            dismissButton = { TextButton(onClick = { deleteDocTarget = null }) { Text("Avbryt") } },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch {
-                        storage.delete(document.uri)
-                        repo.deleteDocument(document.id)
-                    }
-                    deleteDocTarget = null
-                }) { Text("Slett") }
+        ConfirmDialog(
+            title = "Slette «${document.title}»?",
+            text = "PDF-en fjernes fra appen.",
+            onDismiss = { deleteDocTarget = null },
+            onConfirm = {
+                scope.launch {
+                    storage.delete(document.uri)
+                    repo.deleteDocument(document.id)
+                }
             },
         )
     }
@@ -331,17 +329,11 @@ fun ResourcesScreen(
     }
 
     deleteUserTarget?.let { user ->
-        AlertDialog(
-            onDismissRequest = { deleteUserTarget = null },
-            title = { Text("Slette ${user.name}?") },
-            text = { Text("Personen kan ikke lenger signere. Historikk beholder navnet.") },
-            dismissButton = { TextButton(onClick = { deleteUserTarget = null }) { Text("Avbryt") } },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch { repo.deleteUser(user.id) }
-                    deleteUserTarget = null
-                }) { Text("Slett") }
-            },
+        ConfirmDialog(
+            title = "Slette ${user.name}?",
+            text = "Personen kan ikke lenger signere. Historikk beholder navnet.",
+            onDismiss = { deleteUserTarget = null },
+            onConfirm = { scope.launch { repo.deleteUser(user.id) } },
         )
     }
 
@@ -356,27 +348,16 @@ fun ResourcesScreen(
     }
 
     deleteVehicleTarget?.let { ambulance ->
-        AlertDialog(
-            onDismissRequest = { deleteVehicleTarget = null },
-            title = { Text("Slette ${ambulance.callSign}?") },
-            text = { Text("Historikken for kjøretøyet beholdes.") },
-            dismissButton = { TextButton(onClick = { deleteVehicleTarget = null }) { Text("Avbryt") } },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch { repo.deleteAmbulance(ambulance.id) }
-                    deleteVehicleTarget = null
-                }) { Text("Slett") }
-            },
+        ConfirmDialog(
+            title = "Slette ${ambulance.callSign}?",
+            text = "Historikken for kjøretøyet beholdes.",
+            onDismiss = { deleteVehicleTarget = null },
+            onConfirm = { scope.launch { repo.deleteAmbulance(ambulance.id) } },
         )
     }
 
     error?.let {
-        AlertDialog(
-            onDismissRequest = { error = null },
-            title = { Text("Feil") },
-            text = { Text(it) },
-            confirmButton = { TextButton(onClick = { error = null }) { Text("OK") } },
-        )
+        MessageDialog(title = "Feil", message = it, onDismiss = { error = null })
     }
 }
 

@@ -113,6 +113,32 @@ class DeficiencyLifecycleTest {
     }
 
     @Test
+    fun `lang videreført-kjede peker fortsatt til aller første melding`() = runTest {
+        // Et avvik som står uløst gjennom mange vakter er nettopp tilfellet
+        // Mangler-siden finnes for. Kjeden slås opp i én spørring, og en
+        // av-for-én i rekursjonen ville gitt nest første melding i stedet.
+        val s = scenario()
+        val item = s.addItem("Brannslukker")
+
+        val firstRun = s.startRun()
+        s.repo.setResponse(firstRun, item, ItemResult.NEI)
+        val firstReportedAt = s.responseFor(firstRun, item).checkedAt
+
+        var previous = firstRun
+        repeat(9) {
+            previous = s.nextRun(previous)
+            s.repo.setResponse(previous, item, ItemResult.NEI)
+        }
+
+        val open = s.repo.openDeficiencies().first()
+        assertEquals(1, open.size, "Ti meldinger om samme punkt er ett åpent avvik")
+        assertEquals(
+            firstReportedAt, open.first().firstReportedAt,
+            "Ti ledd tilbake skal gi den aller første meldingen",
+        )
+    }
+
+    @Test
     fun `ferskt avvik har ingen tidligere melding`() = runTest {
         val s = scenario()
         val item = s.addItem("Brannslukker")

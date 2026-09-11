@@ -36,11 +36,12 @@ deles. Se [`diagrams/architecture.md`](diagrams/architecture.md).
 RedCross-Ambulance/
 ├── sharedLogic/     Delt kjerne (Kotlin Multiplatform)
 │   ├── ChecklistRepository – all forretningslogikk og validering
+│   ├── presentation/ – tilstanden skjermene viser, delt av begge appene
 │   ├── SQLDelight-skjema → SQLite (lokal-først, alltid kilden til sannhet)
 │   ├── FirebaseSyncService – bakgrunnssynk mot Firestore, «nyeste vinner»
 │   └── DatabaseSeeder – ekte sjekklistedata med faste ID-er
 ├── iosApp/          SwiftUI-app (iPhone og iPad)
-├── sharedUI/        Compose-skjermer (kun Android)
+├── androidUi/       Compose-skjermer – kun Android, derav navnet
 │   └── App.kt velger layout: bunnfaner < 600 dp, sidemeny ≥ 600 dp
 ├── androidApp/      Android-skall (én APK for telefon og nettbrett)
 └── diagrams/        Arkitektur, datamodell, avvikslivssyklus, synk, testdekning
@@ -50,8 +51,11 @@ Prinsipper som styrer koden:
 
 - **Lokal-først**: UI leser og skriver kun mot SQLite. Firestore er et
   synkroniseringslag, aldri en forutsetning. Ingen dekning = ingen forskjell.
-- **Utbyttbar synk**: `SyncService`-grensesnittet gjør at Firebase kan byttes
-  ut med et internt Røde Kors-API uten endringer i appene.
+- **Synk er isolert, ikke abstrahert**: all Firestore-kode ligger i
+  `FirebaseSyncService`, og resten av appen kaller bare `requestSync()`.
+  Skal backend byttes med et internt Røde Kors-API, er det den ene klassen
+  som skrives om – men `sharedLogic` avhenger i dag av Firebase-bibliotekene
+  direkte, så det er en reell jobb, ikke et konfigurasjonsbytte.
 - **Myk sletting**: rader merkes `deleted` og synkes som tombstones, slik at
   sletting når alle enheter.
 - **Kotlin → Swift** via SKIE: Flow blir AsyncSequence, suspend blir
@@ -131,8 +135,9 @@ migrasjonene og `.sq`-filene ikke ender opp med samme skjema.
 ./gradlew :sharedLogic:testAndroidHostTest
 ```
 
-33 tester dekker det som har konsekvenser hvis det svikter: signering og
-fullføring, grenseverdier på målinger og avvikslivssyklusen. Hver test kjører
+112 tester dekker det som har konsekvenser hvis det svikter: signering og
+fullføring, grenseverdier på målinger, avvikslivssyklusen, tilstanden
+sjekklisteskjermen viser, og at migrasjonene faktisk kan leses etterpå. Hver test kjører
 mot en egen SQLite-database i minnet – ingen emulator eller nettverk.
 [`diagrams/test-coverage.md`](diagrams/test-coverage.md) viser hva som er
 dekket, hva som ikke er det, og hvilken manuell testing som kompenserer.
@@ -149,7 +154,11 @@ dekket, hva som ikke er det, og hvilken manuell testing som kompenserer.
 
 ## Kjente begrensninger
 
-- Synk krever manuell utløsning (synk-knapp / pull-to-refresh) eller
-  app-start; ingen kontinuerlig lytting mot Firestore ennå
+- Ingen kontinuerlig lytting mot Firestore ennå: synk skjer ved appstart, når
+  noe delbart endres, og når mannskapet trykker synkknappen eller drar for å
+  oppdatere
+- `updatedAt` settes fra klokka på enheten som skrev raden, ikke fra serveren.
+  Den inkrementelle hentingen kompenserer med et døgns overlapp, men et
+  server-tidsstempel ville vært mer robust dersom flere enheter tas i bruk
 - Dagsgrensen i `startOrResumeRun` er ikke automatisk testet (krever
   klokkeinjeksjon – øverst på lista i test-coverage.md)

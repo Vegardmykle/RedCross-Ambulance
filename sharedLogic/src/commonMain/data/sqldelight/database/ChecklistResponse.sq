@@ -72,6 +72,11 @@ WHERE ChecklistResponse.checklistRunId = ?1
   AND ChecklistItem.phase = ?2
   AND ChecklistItem.deleted = 0;
 
+-- Åpne avvik til Mangler-siden.
+--
+-- Slettede punkter filtreres bort: fjernes et punkt fra lista mens det har et
+-- åpent avvik, finnes det ingen kontroll som kan lukke avviket igjen, og det
+-- ville blitt stående uten vei ut.
 getOpenDeficiencies:
 SELECT
     ChecklistResponse.id,
@@ -98,6 +103,7 @@ JOIN Ambulance ON Ambulance.id = ChecklistRun.ambulanceId
 LEFT JOIN User ON User.id = ChecklistRun.userId
 WHERE ChecklistResponse.result IN ('NEI','MANGELFULL','ODELAGT')
   AND ChecklistResponse.resolved = 0
+  AND ChecklistItem.deleted = 0
 ORDER BY ChecklistResponse.checkedAt DESC;
 
 getUnsyncedResponses:
@@ -129,15 +135,42 @@ WHERE itemId = ?1
       WHERE ambulanceId = (SELECT ambulanceId FROM ChecklistRun WHERE id = ?2)
   );
 
--- Forgjengeren i en videreført-kjede: avviket som ble erstattet av kjøringen ?2
-getSupersededPredecessor:
-SELECT ChecklistResponse.checkedAt, ChecklistResponse.checklistRunId, User.name AS signedByName
-FROM ChecklistResponse
-JOIN ChecklistRun ON ChecklistRun.id = ChecklistResponse.checklistRunId
-LEFT JOIN User ON User.id = ChecklistRun.userId
-WHERE ChecklistResponse.itemId = ?1
-  AND ChecklistResponse.resolvedByRunId = ?2
-  AND ChecklistResponse.resolvedVia = 'SUPERSEDED'
+-- Den opprinnelige meldingen i en videreført-kjede.
+--
+-- Et avvik som meldes på nytt vakt etter vakt lager en kjede: hver ny melding
+-- lukker den forrige med resolvedVia = 'SUPERSEDED'. Mangler-siden viser når
+-- problemet FØRST ble meldt, ikke når det sist ble gjentatt, og må derfor
+-- følge kjeden helt tilbake.
+--
+-- Dette gjøres i én spørring i stedet for én per ledd. Løkka som lå i Kotlin
+-- kjørte på hovedtråden og ble lengre for hvert avvik som ble videreført –
+-- altså verst i nøyaktig de tilfellene siden er laget for.
+--
+-- depth-taket er et vern mot sykluser: skulle to rader peke på hverandre
+-- etter en synkkonflikt, skal spørringen stoppe, ikke henge appen.
+getDeficiencyChainOrigin:
+WITH RECURSIVE chain(itemId, runId, checkedAt, signedByName, depth) AS (
+    SELECT ?1, ?2, CAST(NULL AS INTEGER), CAST(NULL AS TEXT), 0
+    UNION ALL
+    SELECT
+        prev.itemId,
+        prev.checklistRunId,
+        prev.checkedAt,
+        PrevUser.name,
+        chain.depth + 1
+    FROM chain
+    JOIN ChecklistResponse AS prev
+        ON prev.itemId = chain.itemId
+        AND prev.resolvedByRunId = chain.runId
+        AND prev.resolvedVia = 'SUPERSEDED'
+    JOIN ChecklistRun AS PrevRun ON PrevRun.id = prev.checklistRunId
+    LEFT JOIN User AS PrevUser ON PrevUser.id = PrevRun.userId
+    WHERE chain.depth < 100
+)
+SELECT chain.checkedAt AS firstReportedAt, chain.signedByName AS firstReportedByName
+FROM chain
+WHERE chain.depth > 0
+ORDER BY chain.depth DESC
 LIMIT 1;
 
 -- Angring: hvis svaret i gjeldende kjøring endres, nullstill lukkinger denne kjøringen forårsaket

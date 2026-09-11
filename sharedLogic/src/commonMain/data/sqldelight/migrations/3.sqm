@@ -1,0 +1,19 @@
+-- Versjon 3 → 4: inkrementell henting av kjøringer og svar.
+--
+-- Bakgrunn: hver synkronisering hentet samtlige dokumenter i samtlige
+-- kolleksjoner. Kjøringer og svar er de eneste som vokser monotont – én
+-- daglig kontroll er rundt 150 svar, altså i overkant av 50 000 dokumenter
+-- i året per bil. Maler, punkter, mannskap, kjøretøy og lenker er små og
+-- endres sjelden, og hentes fortsatt i sin helhet.
+--
+-- Tabellen er bevisst en nøkkel/verdi-tabell og ikke en kolonne på noe
+-- eksisterende: dette er enhetens egen bokføring, ikke data som skal deles.
+-- Den synkes derfor ikke, og har verken updatedAt, synced eller deleted.
+--
+-- Første synk etter oppgraderingen finner ingen rad, tolker det som 0, og
+-- gjør en full henting. Det er riktig oppførsel – enheten vet ikke hva den
+-- har gått glipp av.
+CREATE TABLE SyncState (
+    key TEXT NOT NULL PRIMARY KEY,
+    value INTEGER NOT NULL
+);

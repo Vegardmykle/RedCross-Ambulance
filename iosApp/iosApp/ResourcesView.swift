@@ -438,27 +438,22 @@ struct ResourcesView: View {
         Task { _ = try? await repo.deleteLink(id: link.id) }
     }
 
+    /// Kopieringen gjøres av lagringslaget, ikke her. Viewet skal ikke
+    /// bestemme hvor dokumentene havner – Android gjør det samme gjennom
+    /// DocumentStorage, og tidligere kunne de to plattformene i prinsippet
+    /// lagt filene ulike steder.
     private func importPdf(_ result: Result<URL, Error>) {
         guard case .success(let url) = result else { return }
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-        do {
-            let fileManager = FileManager.default
-            let dir = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent("documents", isDirectory: true)
-            try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
-            let destination = dir.appendingPathComponent(url.lastPathComponent)
-            if fileManager.fileExists(atPath: destination.path) {
-                try fileManager.removeItem(at: destination)
-            }
-            try fileManager.copyItem(at: url, to: destination)
-            let title = url.deletingPathExtension().lastPathComponent
-            Task {
-                _ = try? await repo.addDocument(title: title, uri: destination.path, sortOrder: 0)
-            }
-        } catch {
+
+        let path = storage.saveFrom(sourcePath: url.path, fileName: url.lastPathComponent)
+        guard storage.exists(path: path) else {
             errorMessage = "Kunne ikke importere PDF-en."
+            return
         }
+        let title = url.deletingPathExtension().lastPathComponent
+        Task { _ = try? await repo.addDocument(title: title, uri: path, sortOrder: 0) }
     }
 
     private func openLink(_ link: AppLink) {

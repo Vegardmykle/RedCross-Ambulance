@@ -65,7 +65,7 @@ Full kjøring tar under ett minutt.
 | Brukergrensesnitt (SwiftUI og Compose) | Endres ofte; enhetstester her gir lav avkastning | **Lav til moderat.** Logikkfeil fanges av testene over, men feil i navigasjon eller knappetilstand fanges ikke | Én gjennomgang av hovedflyten på hver plattform før utrulling: start liste → svar nei → signer → se avviket i arkivet |
 | Adaptiv layout (telefon/nettbrett) | Rent visuelt | **Lav.** | Visuell sjekk på iPhone, iPad, Android-telefon og Android-nettbrett |
 | Seeding (`DatabaseSeeder`) | – | **Lav i dag.** Faste ID-er gjør gjentatt seeding trygg, men det er ikke verifisert automatisk | Bør legges til; enkel test (kjør to ganger, sjekk antall rader) |
-| Hjelpefunksjoner for tall og URL | Ligger i `sharedUI` og er dermed Android-bundet | **Lav.** | Bør flyttes til `sharedLogic/util` så iOS og Android bruker samme regler og testes én gang |
+| URL-normalisering | Finnes både i `androidUi` og som `ResourcesView.normalizeUrl` i Swift | **Lav.** | Bør flyttes til `sharedLogic` slik tallhåndteringen ble, så begge plattformer bruker samme regel |
 | CRUD på maler, punkter, mannskap, kjøretøy, lenker | Brukes indirekte av alle testene over | **Lav.** En feil her ville fått testene over til å falle | – |
 
 ## Hendelse: stille synkstopp på iOS (16.08.2026)

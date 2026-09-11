@@ -17,12 +17,16 @@ import database.GetRunsAwaitingClosure
 import database.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.example.project.db.AppDatabase
 import org.example.project.model.ChecklistPhase
 import org.example.project.model.ItemResult
+import org.example.project.model.MeasurementLimits
 import org.example.project.model.OpenDeficiency
+import org.example.project.model.ResolvedVia
+import org.example.project.model.RunStatus
 import org.example.project.model.TemplateType
 import kotlin.coroutines.cancellation.CancellationException
 import org.example.project.util.currentTimeMillis
@@ -32,8 +36,23 @@ import org.example.project.util.randomId
  * Alt UI-laget trenger for å lese og skrive sjekklister.
  * Lesing eksponeres som Flow (oppdateres automatisk ved endringer),
  * skriving er suspend-funksjoner.
+ *
+ * [onLocalChange] kalles når noe som skal deles med de andre enhetene er
+ * endret. Utløseren hører hjemme her, ikke i UI-et: da glemmes den ikke på en
+ * skjerm. Tidligere ble en callback tredd gjennom Compose-hierarkiet, og to
+ * skjermer på Android fikk den aldri – maleditering og administrasjon ble
+ * dermed ikke sendt videre før neste appstart, mens iOS sendte dem med én
+ * gang. Samme app, ulik oppførsel.
+ *
+ * Svar på enkeltpunkter utløser bevisst ikke synk: mannskapet krysser av
+ * hundrevis av punkter i løpet av en kontroll, og de sendes samlet når
+ * kontrollen signeres. Radene står som usynkede i mellomtiden, så ingenting
+ * går tapt.
  */
-class ChecklistRepository(private val db: AppDatabase) {
+class ChecklistRepository(
+    private val db: AppDatabase,
+    private val onLocalChange: () -> Unit = {},
+) {
 
     companion object {
         /**
@@ -60,6 +79,19 @@ class ChecklistRepository(private val db: AppDatabase) {
         db.checklistItemQueries.getItemsByTemplateId(templateId)
             .asFlow().mapToList(Dispatchers.Default)
 
+    /**
+     * Alle punkter i lista inkludert sekkene, i den rekkefølgen utstyret
+     * ligger i bilen.
+     *
+     * Sjekklisteskjermen trenger hele settet for å telle fremdrift og avgjøre
+     * om alt er besvart. Å samle det opp fra sekkekortene mens de tegnes
+     * fungerer bare så lenge de faktisk tegnes – og sekkene skjules når
+     * før-delen er signert.
+     */
+    fun itemsForTemplateTree(templateId: String): Flow<List<ChecklistItem>> =
+        db.checklistItemQueries.getItemsForTemplateTree(templateId)
+            .asFlow().mapToList(Dispatchers.Default)
+
     suspend fun createTemplate(
         name: String,
         type: TemplateType,
@@ -67,12 +99,14 @@ class ChecklistRepository(private val db: AppDatabase) {
     ): String = withContext(Dispatchers.Default) {
         val id = randomId()
         db.checklistTemplateQueries.insertTemplate(id, name, type.db, parentId, 0, currentTimeMillis())
+        onLocalChange()
         id
     }
 
-    suspend fun renameTemplate(id: String, name: String) =
+    suspend fun renameTemplate(id: String, name: String): Unit =
         withContext(Dispatchers.Default) {
             db.checklistTemplateQueries.updateTemplateName(id, name, currentTimeMillis())
+            onLocalChange()
         }
 
     /**
@@ -84,7 +118,7 @@ class ChecklistRepository(private val db: AppDatabase) {
      * signering.
      */
     @Throws(IllegalArgumentException::class, IllegalStateException::class, CancellationException::class)
-    suspend fun moveBag(bagId: String, newParentId: String) = withContext(Dispatchers.Default) {
+    suspend fun moveBag(bagId: String, newParentId: String): Unit = withContext(Dispatchers.Default) {
         require(bagId != newParentId) { "En sekk kan ikke være sin egen hovedliste" }
 
         val bag = db.checklistTemplateQueries.getTemplateById(bagId).executeAsOneOrNull()
@@ -102,10 +136,11 @@ class ChecklistRepository(private val db: AppDatabase) {
         db.checklistTemplateQueries.moveTemplateToParent(
             bagId, newParentId, next, currentTimeMillis(),
         )
+        onLocalChange()
     }
 
     /** Sletter (soft) mal, dens punkter og eventuelle sekker med innhold. */
-    suspend fun deleteTemplate(id: String) = withContext(Dispatchers.Default) {
+    suspend fun deleteTemplate(id: String): Unit = withContext(Dispatchers.Default) {
         val now = currentTimeMillis()
         db.transaction {
             db.checklistTemplateQueries.getBagsForTemplate(id).executeAsList().forEach { bag ->
@@ -115,6 +150,7 @@ class ChecklistRepository(private val db: AppDatabase) {
             db.checklistItemQueries.deleteItemsForTemplate(id, now)
             db.checklistTemplateQueries.deleteTemplate(id, now)
         }
+        onLocalChange()
     }
 
     suspend fun addItem(
@@ -135,6 +171,7 @@ class ChecklistRepository(private val db: AppDatabase) {
             if (requiresValue) 1L else 0L, unit, minValue, maxValue, next,
             phase.db, currentTimeMillis(),
         )
+        onLocalChange()
         id
     }
 
@@ -148,26 +185,29 @@ class ChecklistRepository(private val db: AppDatabase) {
         minValue: Double? = null,
         maxValue: Double? = null,
         phase: ChecklistPhase = ChecklistPhase.BEFORE,
-    ) = withContext(Dispatchers.Default) {
+    ): Unit = withContext(Dispatchers.Default) {
         db.checklistItemQueries.updateItem(
             id, title, description,
             if (requiresValue) 1L else 0L, unit, minValue, maxValue, phase.db,
             currentTimeMillis(),
         )
+        onLocalChange()
     }
 
-    suspend fun deleteItem(id: String) = withContext(Dispatchers.Default) {
+    suspend fun deleteItem(id: String): Unit = withContext(Dispatchers.Default) {
         db.checklistItemQueries.deleteItem(id, currentTimeMillis())
+        onLocalChange()
     }
 
     /** Setter ny rekkefølge: itemIds i ønsket rekkefølge får sortOrder 1, 2, 3 … */
-    suspend fun reorderItems(itemIds: List<String>) = withContext(Dispatchers.Default) {
+    suspend fun reorderItems(itemIds: List<String>): Unit = withContext(Dispatchers.Default) {
         val now = currentTimeMillis()
         db.transaction {
             itemIds.forEachIndexed { index, id ->
                 db.checklistItemQueries.updateItemSortOrder(id, (index + 1).toLong(), now)
             }
         }
+        onLocalChange()
     }
 
     // ---------- Kjøringer ----------
@@ -242,13 +282,13 @@ class ChecklistRepository(private val db: AppDatabase) {
         result: ItemResult,
         comment: String? = null,
         reading: String? = null,
-    ) = withContext(Dispatchers.Default) {
+    ): Unit = withContext(Dispatchers.Default) {
         val value = reading?.let {
             requireNotNull(it.toDoubleOrNull()) { "Avlest verdi må være et tall" }
         }
 
         val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
-        check(run != null && run.status == "IN_PROGRESS") {
+        check(run != null && run.status == RunStatus.IN_PROGRESS.db) {
             "Sjekklisten er lukket og kan ikke endres"
         }
 
@@ -256,18 +296,13 @@ class ChecklistRepository(private val db: AppDatabase) {
         var finalComment = comment
         if (value != null) {
             val item = db.checklistItemQueries.getItemById(itemId).executeAsOneOrNull()
-            val min = item?.minValue
-            val max = item?.maxValue
-            if ((min != null && value < min) || (max != null && value > max)) {
+            val limits = MeasurementLimits(item?.minValue, item?.maxValue)
+            if (item != null && !limits.isEmpty && !limits.contains(value)) {
                 finalResult = ItemResult.MANGELFULL
                 if (finalComment.isNullOrBlank()) {
-                    // Vi er inne i grensen er overskredet-grenen, så item finnes
                     val unit = item.unit.orEmpty()
-                    finalComment = buildString {
-                        append("Avlest $reading $unit er utenfor grense")
-                        if (min != null) append(" (min ${fmt(min)})")
-                        if (max != null) append(" (maks ${fmt(max)})")
-                    }
+                    finalComment =
+                        "Avlest $reading $unit er utenfor grense${limits.describe()}"
                 }
             }
         }
@@ -282,18 +317,15 @@ class ChecklistRepository(private val db: AppDatabase) {
             // Lukk tidligere åpne avvik: OK nå = RECHECK, nytt avvik = SUPERSEDED
             if (finalResult == ItemResult.JA) {
                 db.checklistResponseQueries.resolveEarlierDeficiencies(
-                    itemId, runId, currentTimeMillis(), reading, "RECHECK",
+                    itemId, runId, currentTimeMillis(), reading, ResolvedVia.RECHECK.db,
                 )
             } else {
                 db.checklistResponseQueries.resolveEarlierDeficiencies(
-                    itemId, runId, currentTimeMillis(), null, "SUPERSEDED",
+                    itemId, runId, currentTimeMillis(), null, ResolvedVia.SUPERSEDED.db,
                 )
             }
         }
     }
-
-    private fun fmt(value: Double): String =
-        if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
 
     /**
      * Signerer før-vakt-delen. Kontrollen forblir åpen – vakta er ikke over
@@ -302,14 +334,14 @@ class ChecklistRepository(private val db: AppDatabase) {
      * Krever at alle før-punktene er besvart, men rører ikke etter-punktene.
      */
     @Throws(IllegalStateException::class, IllegalArgumentException::class, CancellationException::class)
-    suspend fun signBeforeShift(runId: String, userId: String) =
+    suspend fun signBeforeShift(runId: String, userId: String): Unit =
         withContext(Dispatchers.Default) {
             require(userId.isNotBlank()) { "Mannskaps-ID er påkrevd" }
             requireNotNull(db.userQueries.getUserById(userId).executeAsOneOrNull()) {
                 "Ukjent mannskaps-ID"
             }
             val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
-            check(run != null && run.status == "IN_PROGRESS") {
+            check(run != null && run.status == RunStatus.IN_PROGRESS.db) {
                 "Kontrollen er allerede lukket"
             }
             check(run.beforeSignedAt == null) { "Før-vakt-delen er allerede signert" }
@@ -327,6 +359,7 @@ class ChecklistRepository(private val db: AppDatabase) {
             }
 
             db.checklistRunQueries.signBeforeShift(runId, currentTimeMillis(), userId)
+            onLocalChange()
         }
 
     /**
@@ -334,12 +367,13 @@ class ChecklistRepository(private val db: AppDatabase) {
      * Mulig helt til kontrollen avsluttes; etter det er alt låst.
      */
     @Throws(IllegalStateException::class, CancellationException::class)
-    suspend fun reopenBeforeShift(runId: String) = withContext(Dispatchers.Default) {
+    suspend fun reopenBeforeShift(runId: String): Unit = withContext(Dispatchers.Default) {
         val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
-        check(run != null && run.status == "IN_PROGRESS") {
+        check(run != null && run.status == RunStatus.IN_PROGRESS.db) {
             "Kontrollen er lukket og kan ikke endres"
         }
         db.checklistRunQueries.reopenBeforeShift(runId, currentTimeMillis())
+        onLocalChange()
     }
 
     /**
@@ -365,11 +399,11 @@ class ChecklistRepository(private val db: AppDatabase) {
      * kontrollen ble stående åpen.
      */
     @Throws(IllegalStateException::class, IllegalArgumentException::class, CancellationException::class)
-    suspend fun completeRun(runId: String, userId: String, comment: String? = null) =
+    suspend fun completeRun(runId: String, userId: String, comment: String? = null): Unit =
         withContext(Dispatchers.Default) {
             require(userId.isNotBlank()) { "Mannskaps-ID er påkrevd" }
             val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
-            check(run != null && run.status == "IN_PROGRESS") {
+            check(run != null && run.status == RunStatus.IN_PROGRESS.db) {
                 "Sjekklisten er allerede lukket"
             }
             // To-fase-signering gjelder bare lister som faktisk har
@@ -396,6 +430,7 @@ class ChecklistRepository(private val db: AppDatabase) {
                 "Alle punkter må besvares før signering ($answered av $expected)"
             }
             db.checklistRunQueries.completeRun(runId, currentTimeMillis(), userId, comment)
+            onLocalChange()
         }
 
     /** Til arkivet: alle svar i en kjøring, med punkttittel og liste/sekk-navn. */
@@ -407,6 +442,24 @@ class ChecklistRepository(private val db: AppDatabase) {
         db.checklistRunQueries.getRecentRuns(limit)
             .asFlow().mapToList(Dispatchers.Default)
 
+    /**
+     * Når hver listetype sist ble fullført for ett kjøretøy, som
+     * `TemplateType.db` -> tidspunkt.
+     *
+     * Dashbordet utledet dette ved å filtrere de 50 siste kontrollene i UI-et.
+     * Det brøt sammen både når arkivet vokste forbi 50 rader og fordi det så
+     * bort fra hvilken bil kontrollen gjaldt.
+     */
+    fun latestCompletedByType(ambulanceId: String): Flow<Map<String, Long>> =
+        db.checklistRunQueries.latestCompletedRunByType(ambulanceId)
+            .asFlow().mapToList(Dispatchers.Default)
+            // Spørringa filtrerer bort NULL, men MAX() gjør at SQLDelight
+            // likevel typer kolonnen nullable. En listetype uten fullført
+            // kontroll skal mangle fra kartet, ikke ligge der med null-verdi.
+            .map { rows ->
+                rows.mapNotNull { row -> row.completedAt?.let { row.templateType to it } }.toMap()
+            }
+
     // ---------- Mangler ----------
 
     /** Punkter som har åpne avvik fra tidligere kontroller (vises som varsel i ny kjøring). */
@@ -414,24 +467,26 @@ class ChecklistRepository(private val db: AppDatabase) {
         db.checklistResponseQueries.getItemIdsWithOpenDeficiencies(ambulanceId, excludeRunId)
             .asFlow().mapToList(Dispatchers.Default)
 
+    /**
+     * Åpne avvik, hvert med sporing tilbake til den første meldingen.
+     *
+     * [flowOn] er nødvendig, ikke pynt: mapToList flytter bare selve
+     * spørringen til bakgrunn, mens operatorene nedenfor kjører der
+     * strømmen samles inn – på Android er det hovedtråden. Uten den ville
+     * oppslaget av kjeden per rad blitt blokkerende disk-I/O i UI-tråden.
+     */
     fun openDeficiencies(): Flow<List<OpenDeficiency>> =
         db.checklistResponseQueries.getOpenDeficiencies()
             .asFlow().mapToList(Dispatchers.Default)
             .map { rows -> rows.map { it.toOpenDeficiency() } }
+            .flowOn(Dispatchers.Default)
 
     private fun GetOpenDeficiencies.toOpenDeficiency(): OpenDeficiency {
-        // Følg videreført-kjeden bakover til den opprinnelige meldingen
-        var currentRunId = checklistRunId
-        var earliestAt: Long? = null
-        var earliestBy: String? = null
-        while (true) {
-            val prev = db.checklistResponseQueries
-                .getSupersededPredecessor(itemId, currentRunId)
-                .executeAsOneOrNull() ?: break
-            earliestAt = prev.checkedAt
-            earliestBy = prev.signedByName
-            currentRunId = prev.checklistRunId
-        }
+        // Én spørring følger hele videreført-kjeden tilbake til den første
+        // meldingen; tidligere var dette én spørring per ledd.
+        val origin = db.checklistResponseQueries
+            .getDeficiencyChainOrigin(itemId, checklistRunId)
+            .executeAsOneOrNull()
         return OpenDeficiency(
             id = id,
             result = result,
@@ -446,8 +501,8 @@ class ChecklistRepository(private val db: AppDatabase) {
             listName = listName,
             callSign = callSign,
             signedByName = signedByName,
-            firstReportedAt = earliestAt,
-            firstReportedByName = earliestBy,
+            firstReportedAt = origin?.firstReportedAt,
+            firstReportedByName = origin?.firstReportedByName,
         )
     }
 
@@ -458,7 +513,7 @@ class ChecklistRepository(private val db: AppDatabase) {
      * og hvem som løste det (resolvedByUserId) bevares.
      */
     @Throws(IllegalStateException::class, IllegalArgumentException::class, CancellationException::class)
-    suspend fun resolveDeficiency(responseId: String, userId: String, newReading: String? = null) =
+    suspend fun resolveDeficiency(responseId: String, userId: String, newReading: String? = null): Unit =
         withContext(Dispatchers.Default) {
             require(userId.isNotBlank()) { "Mannskaps-ID er påkrevd" }
             requireNotNull(db.userQueries.getUserById(userId).executeAsOneOrNull()) {
@@ -475,17 +530,15 @@ class ChecklistRepository(private val db: AppDatabase) {
                 val value = requireNotNull(newReading?.toDoubleOrNull()) {
                     "Ny avlest verdi er påkrevd"
                 }
-                val min = item.minValue
-                val max = item.maxValue
-                check((min == null || value >= min) && (max == null || value <= max)) {
-                    "Verdien er fortsatt utenfor grense" +
-                        (min?.let { " (min ${fmt(it)})" } ?: "") +
-                        (max?.let { " (maks ${fmt(it)})" } ?: "")
+                val limits = MeasurementLimits(item.minValue, item.maxValue)
+                check(limits.contains(value)) {
+                    "Verdien er fortsatt utenfor grense${limits.describe()}"
                 }
                 reading = newReading
             }
 
             db.checklistResponseQueries.resolveDeficiency(responseId, currentTimeMillis(), reading, userId)
+            onLocalChange()
         }
 
     // ---------- Mannskap ----------
@@ -496,14 +549,16 @@ class ChecklistRepository(private val db: AppDatabase) {
 
     /** id = mannskaps-ID (ikke generert). */
     @Throws(IllegalArgumentException::class, CancellationException::class)
-    suspend fun addUser(id: String, name: String, role: String) =
+    suspend fun addUser(id: String, name: String, role: String): Unit =
         withContext(Dispatchers.Default) {
             require(id.isNotBlank()) { "Mannskaps-ID er påkrevd" }
             db.userQueries.insertUser(id, name, role, currentTimeMillis())
+            onLocalChange()
         }
 
-    suspend fun deleteUser(id: String) = withContext(Dispatchers.Default) {
+    suspend fun deleteUser(id: String): Unit = withContext(Dispatchers.Default) {
         db.userQueries.deleteUser(id, currentTimeMillis())
+        onLocalChange()
     }
 
     // ---------- Ambulanser ----------
@@ -516,11 +571,13 @@ class ChecklistRepository(private val db: AppDatabase) {
         withContext(Dispatchers.Default) {
             val id = randomId()
             db.ambulanceQueries.insertAmbulance(id, callSign, registrationNumber, currentTimeMillis())
+            onLocalChange()
             id
         }
 
-    suspend fun deleteAmbulance(id: String) = withContext(Dispatchers.Default) {
+    suspend fun deleteAmbulance(id: String): Unit = withContext(Dispatchers.Default) {
         db.ambulanceQueries.deleteAmbulance(id, currentTimeMillis())
+        onLocalChange()
     }
 
     // ---------- Lenker ----------
@@ -533,16 +590,19 @@ class ChecklistRepository(private val db: AppDatabase) {
         withContext(Dispatchers.Default) {
             val id = randomId()
             db.appLinkQueries.insertLink(id, title, url, sortOrder, currentTimeMillis())
+            onLocalChange()
             id
         }
 
-    suspend fun updateLink(id: String, title: String, url: String) =
+    suspend fun updateLink(id: String, title: String, url: String): Unit =
         withContext(Dispatchers.Default) {
             db.appLinkQueries.updateLink(id, title, url, currentTimeMillis())
+            onLocalChange()
         }
 
-    suspend fun deleteLink(id: String) = withContext(Dispatchers.Default) {
+    suspend fun deleteLink(id: String): Unit = withContext(Dispatchers.Default) {
         db.appLinkQueries.deleteLink(id, currentTimeMillis())
+        onLocalChange()
     }
 
     // ---------- Dokumenter ----------
@@ -555,15 +615,18 @@ class ChecklistRepository(private val db: AppDatabase) {
         withContext(Dispatchers.Default) {
             val id = randomId()
             db.documentQueries.insertDocument(id, title, uri, sortOrder, currentTimeMillis())
+            onLocalChange()
             id
         }
 
-    suspend fun updateDocument(id: String, title: String, uri: String) =
+    suspend fun updateDocument(id: String, title: String, uri: String): Unit =
         withContext(Dispatchers.Default) {
             db.documentQueries.updateDocument(id, title, uri, currentTimeMillis())
+            onLocalChange()
         }
 
-    suspend fun deleteDocument(id: String) = withContext(Dispatchers.Default) {
+    suspend fun deleteDocument(id: String): Unit = withContext(Dispatchers.Default) {
         db.documentQueries.deleteDocument(id, currentTimeMillis())
+        onLocalChange()
     }
 }

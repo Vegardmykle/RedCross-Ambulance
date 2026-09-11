@@ -93,6 +93,23 @@ WHERE EXISTS (
 ORDER BY createdAt DESC
 LIMIT ?1;
 
+-- Siste fullførte kontroll per listetype for ett kjøretøy.
+--
+-- Dashbordet regnet dette ut ved å filtrere de 50 siste kontrollene på
+-- klienten. Det ga to feil: passerte det 50 kontroller siden forrige
+-- ukessjekk, falt merket stille tilbake til «VENTER», og filteret så bort fra
+-- hvilken ambulanse kontrollen gjaldt – var ambulanse 1 kontrollert, viste
+-- ambulanse 2 også «FULLFØRT». For en app som skal dokumentere at hver enkelt
+-- bil er kontrollert, er det siste det alvorligste.
+latestCompletedRunByType:
+SELECT ChecklistTemplate.type AS templateType, MAX(ChecklistRun.completedAt) AS completedAt
+FROM ChecklistRun
+JOIN ChecklistTemplate ON ChecklistTemplate.id = ChecklistRun.templateId
+WHERE ChecklistRun.ambulanceId = ?1
+  AND ChecklistRun.status = 'COMPLETED'
+  AND ChecklistRun.completedAt IS NOT NULL
+GROUP BY ChecklistTemplate.type;
+
 countResponsesForRunId:
 SELECT COUNT(*)
 FROM ChecklistResponse
@@ -128,6 +145,12 @@ WHERE id = ?1 AND status = 'IN_PROGRESS';
 
 -- Vakter der før-delen er signert, men avslutningen mangler. Vises som
 -- påminnelse til noen tar den.
+--
+-- Statusfilteret er nødvendig: expireRun setter EXPIRED og lar completedAt
+-- være NULL, så en utløpt vakt ville ellers blitt stående som påminnelse for
+-- alltid – og den kan aldri kvitteres ut, siden completeRun krever
+-- IN_PROGRESS. En påminnelse som ikke kan lukkes blir til slutt ignorert
+-- også når den er ekte.
 getRunsAwaitingClosure:
 SELECT ChecklistRun.*, ChecklistTemplate.name AS templateName, Ambulance.callSign,
     User.name AS beforeSignedByName
@@ -137,4 +160,5 @@ JOIN Ambulance ON Ambulance.id = ChecklistRun.ambulanceId
 LEFT JOIN User ON User.id = ChecklistRun.beforeUserId
 WHERE ChecklistRun.beforeSignedAt IS NOT NULL
   AND ChecklistRun.completedAt IS NULL
+  AND ChecklistRun.status = 'IN_PROGRESS'
 ORDER BY ChecklistRun.createdAt DESC;

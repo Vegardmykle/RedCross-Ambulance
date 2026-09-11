@@ -8,10 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.example.project.data.ChecklistRepository
@@ -19,25 +16,22 @@ import org.example.project.data.DatabaseSeeder
 import org.example.project.data.createDriver
 import org.example.project.db.AppDatabase
 import org.example.project.storage.AndroidDocumentStorage
+import org.example.project.ui.shell.App
 import org.example.project.sync.FirebaseSyncService
 
 class MainActivity : ComponentActivity() {
 
     private val database by lazy { AppDatabase(createDriver(applicationContext)) }
-    private val repository by lazy { ChecklistRepository(database) }
     private val documentStorage by lazy { AndroidDocumentStorage(applicationContext) }
     private val syncService by lazy { FirebaseSyncService(database) }
 
     /**
-     * Synkronisering må overleve at skjermen den ble startet fra forsvinner.
-     * Kjøres den på en Compose-scope, drepes den midt i en push når brukeren
-     * navigerer videre – typisk rett etter signering, som er nettopp når
-     * dataene må ut til de andre bilene.
+     * Repositoryet varsler synken selv når noe delbart er endret, så ingen
+     * skjerm kan glemme det. syncService opprettes først, så det er ingen
+     * sirkulær avhengighet – lambdaen slår den opp når den kalles.
      */
-    private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
-    private fun requestSync() {
-        syncScope.launch { syncService.syncAll() }
+    private val repository by lazy {
+        ChecklistRepository(database) { syncService.requestSync() }
     }
 
     private val pickPdf = registerForActivityResult(
@@ -50,28 +44,20 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        syncScope.launch {
-            // Pull først så vi ikke seeder duplikater av data som finnes i skyen,
-            // seed bare hvis databasen fortsatt er tom, push deretter.
-            syncService.syncAll()
-            DatabaseSeeder(database).seedIfEmpty()
-            syncService.syncAll()
-        }
+        // Pull først så vi ikke seeder duplikater av data som finnes i skyen,
+        // seed bare hvis databasen fortsatt er tom, push deretter. Kjøres på
+        // synkens egen scope, som overlever at aktiviteten forsvinner.
+        syncService.requestInitialSync { DatabaseSeeder(database).seedIfEmpty() }
 
         setContent {
             App(
                 repository = repository,
                 documentStorage = documentStorage,
                 onRequestPdfImport = { pickPdf.launch(arrayOf("application/pdf")) },
-                onSyncRequest = ::requestSync,
+                onRefresh = syncService::requestSync,
                 syncStatus = syncService.status,
             )
         }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        if (isFinishing) syncScope.cancel()
     }
 
     private fun importPdf(uri: Uri) {

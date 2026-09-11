@@ -166,7 +166,6 @@ struct ResolveSheetView: View {
                     newReading: reading
                 )
                 saving = false
-                AppDependencies.shared.syncService.requestSync()
                 dismiss()
             } catch {
                 saving = false
@@ -216,14 +215,7 @@ struct DeficiencyRow: View {
         Self.shortDate(deficiency.checkedAt)
     }
 
-    static func shortDate(_ millis: Int64) -> String {
-        let date = Date(timeIntervalSince1970: Double(millis) / 1000)
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "nb_NO")
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
-    }
+    static func shortDate(_ millis: Int64) -> String { AppDate.format(millis) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {

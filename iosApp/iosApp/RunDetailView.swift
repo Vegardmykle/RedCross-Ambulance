@@ -48,14 +48,7 @@ struct RunDetailView: View {
         }
     }
 
-    static func format(_ millis: Int64) -> String {
-        let date = Date(timeIntervalSince1970: Double(millis) / 1000)
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "nb_NO")
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
-    }
+    static func format(_ millis: Int64) -> String { AppDate.format(millis) }
 }
 
 struct ResponseDetailRow: View {
@@ -65,16 +58,18 @@ struct ResponseDetailRow: View {
 
     private var isResolved: Bool { response.resolved != 0 }
 
-    private var isSuperseded: Bool { response.resolvedVia == "SUPERSEDED" }
+    /// Merkelappen utledes i sharedLogic: videreført sjekkes før løst, siden
+    /// begge har resolved = 1 i databasen men bare den ene er rettet.
+    private var badge: ResponseBadge { RunSummaryKt.responseBadge(response: response) }
 
-    private var badgeText: String {
-        if isSuperseded { return "Videreført" }
-        return isResolved ? "Løst" : (choice?.label ?? response.result)
-    }
+    private var badgeText: String { badge.text }
 
     private var badgeColor: Color {
-        if isSuperseded { return .orange }
-        return isResolved ? .green : (choice?.color ?? .secondary)
+        switch badge.outcome {
+        case .carriedOver: .orange
+        case .resolved, .ok: .green
+        case .deviation: choice?.color ?? .secondary
+        }
     }
 
     var body: some View {
@@ -106,10 +101,14 @@ struct ResponseDetailRow: View {
             }
 
             if isResolved, let resolvedAt = response.resolvedAt {
+                let carriedOver = badge.outcome == .carriedOver
                 HStack(spacing: 4) {
-                    Image(systemName: isSuperseded ? "arrow.triangle.2.circlepath" : "checkmark.circle.fill")
-                        .foregroundStyle(isSuperseded ? .orange : .green)
-                    Text(resolvedText(at: resolvedAt.int64Value))
+                    Image(systemName: carriedOver ? "arrow.triangle.2.circlepath" : "checkmark.circle.fill")
+                        .foregroundStyle(carriedOver ? .orange : .green)
+                    Text(RunSummaryKt.resolutionText(
+                        response: response,
+                        resolvedAtText: RunDetailView.format(resolvedAt.int64Value)
+                    ))
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -118,17 +117,4 @@ struct ResponseDetailRow: View {
         .padding(.vertical, 2)
     }
 
-    private func resolvedText(at millis: Int64) -> String {
-        let was = "Var \(choice?.label.lowercased() ?? "avvik")"
-        let how = switch response.resolvedVia {
-        case "RECHECK": "OK ved senere kontroll"
-        case "SUPERSEDED": "videreført til senere kontroll"
-        default: response.resolvedByName.map { "løst av \($0)" } ?? "løst manuelt"
-        }
-        var text = "\(was) · \(how) \(RunDetailView.format(millis))"
-        if let newReading = response.resolvedReading, !newReading.isEmpty {
-            text += " · ny verdi \(newReading) \(response.unit ?? "")"
-        }
-        return text
-    }
 }

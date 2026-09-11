@@ -8,6 +8,7 @@ import org.example.project.model.ItemResult
 import org.example.project.model.TemplateType
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -33,11 +34,36 @@ class MigrationTest {
 
     @Test
     fun `skjemaversjonen holder folge med migrasjonsfilene`() {
-        // Versjon = antall .sqm-filer + 1. Er den 1 etter at en migrasjon er
-        // lagt til, er skjemaet ikke regenerert og enhetene vil ikke migrere.
+        // Versjon = antall .sqm-filer + 1. Blir denne stående igjen når en ny
+        // migrasjon legges til, er skjemaet ikke regenerert – og enhetene i
+        // bilene vil ikke migrere.
         assertTrue(
-            AppDatabase.Schema.version >= 2,
-            "Forventet minst versjon 2 etter 1.sqm, var ${AppDatabase.Schema.version}",
+            AppDatabase.Schema.version >= 3,
+            "Forventet minst versjon 3 etter 1.sqm og 2.sqm, var ${AppDatabase.Schema.version}",
+        )
+    }
+
+    @Test
+    fun `synkbokforingen overlever oppgraderingen`() {
+        val db = freshDatabase()
+
+        assertNull(
+            db.syncStateQueries.getSyncValue("lastPullAt").executeAsOneOrNull(),
+            "Uten tidligere henting skal merket mangle, ikke være 0 – " +
+                "en nyoppgradert enhet vet ikke hva den har gått glipp av og må hente alt",
+        )
+
+        db.syncStateQueries.setSyncValue("lastPullAt", 1_700_000_000_000)
+        assertEquals(
+            1_700_000_000_000,
+            db.syncStateQueries.getSyncValue("lastPullAt").executeAsOne(),
+        )
+
+        // Skriving to ganger skal oppdatere, ikke feile på primærnøkkelen
+        db.syncStateQueries.setSyncValue("lastPullAt", 1_800_000_000_000)
+        assertEquals(
+            1_800_000_000_000,
+            db.syncStateQueries.getSyncValue("lastPullAt").executeAsOne(),
         )
     }
 

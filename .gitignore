@@ -38,3 +38,6 @@ scripts/keys/
 
 # Profilering/krasjdumper
 *.hprof
+
+# Eksport av produksjonsdata fra opprydding – aldri i repo
+scripts/prod-backup-*.json

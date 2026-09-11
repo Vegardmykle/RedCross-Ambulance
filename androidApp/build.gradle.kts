@@ -31,7 +31,7 @@ kotlin {
     }
 }
 dependencies {
-    implementation(projects.sharedUI)
+    implementation(projects.androidUi)
 
     implementation(libs.androidx.activity.compose)
 
@@ -49,8 +49,8 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         // Øk versionCode for hver utsendelse – ellers ser ikke testerne
         // at det er kommet en ny versjon
-        versionCode = 4
-        versionName = "1.3.0"
+        versionCode = 5
+        versionName = "1.4.0"
     }
     packaging {
         resources {

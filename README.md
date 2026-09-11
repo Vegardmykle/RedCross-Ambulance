@@ -36,11 +36,12 @@ deles. Se [`diagrams/architecture.md`](diagrams/architecture.md).
 RedCross-Ambulance/
 ├── sharedLogic/     Delt kjerne (Kotlin Multiplatform)
 │   ├── ChecklistRepository – all forretningslogikk og validering
+│   ├── presentation/ – tilstanden skjermene viser, delt av begge appene
 │   ├── SQLDelight-skjema → SQLite (lokal-først, alltid kilden til sannhet)
 │   ├── FirebaseSyncService – bakgrunnssynk mot Firestore, «nyeste vinner»
 │   └── DatabaseSeeder – ekte sjekklistedata med faste ID-er
 ├── iosApp/          SwiftUI-app (iPhone og iPad)
-├── sharedUI/        Compose-skjermer (kun Android)
+├── androidUi/       Compose-skjermer – kun Android, derav navnet
 │   └── App.kt velger layout: bunnfaner < 600 dp, sidemeny ≥ 600 dp
 ├── androidApp/      Android-skall (én APK for telefon og nettbrett)
 └── diagrams/        Arkitektur, datamodell, avvikslivssyklus, synk, testdekning

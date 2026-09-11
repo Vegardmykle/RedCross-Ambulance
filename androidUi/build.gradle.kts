@@ -10,7 +10,7 @@ plugins {
 kotlin {
 
     androidLibrary {
-       namespace = "org.example.project.sharedUI"
+       namespace = "org.example.project.androidUi"
        compileSdk = libs.versions.android.compileSdk.get().toInt()
        minSdk = libs.versions.android.minSdk.get().toInt()
     

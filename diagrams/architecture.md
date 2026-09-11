@@ -10,7 +10,7 @@ flowchart TB
         activity["MainActivity\n(PDF-import, sync-trigger)"]
     end
 
-    subgraph SharedUI["sharedUI (Compose, kun Android)"]
+    subgraph AndroidUi["androidUi (Compose, kun Android)"]
         composeScreens["Screens: Dashboard · Sjekkliste · Arkiv & Mangler · Ressurser · Rediger"]
         shells["Adaptivt skall (App.kt)\n< 600 dp: bunnavigasjon (telefon)\n≥ 600 dp: sidemeny (nettbrett)"]
         shells --> composeScreens

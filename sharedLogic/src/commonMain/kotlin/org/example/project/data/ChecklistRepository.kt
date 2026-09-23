@@ -308,8 +308,14 @@ class ChecklistRepository(
         }
 
         db.transaction {
+            // Et endret svar beholder id-en sin. Med ny id for hvert svar ble
+            // det gamle dokumentet liggende i Firestore ved siden av det nye,
+            // og en annen enhet kunne hente det sist og vise det gamle svaret.
+            val id = db.checklistResponseQueries
+                .getResponseForRunAndItem(runId, itemId)
+                .executeAsOneOrNull()?.id ?: randomId()
             db.checklistResponseQueries.upsertResponse(
-                randomId(), runId, itemId, finalResult.db, finalComment, reading, currentTimeMillis(),
+                id, runId, itemId, finalResult.db, finalComment, reading, currentTimeMillis(),
             )
             // Angre eventuelle lukkinger denne kjøringen har gjort på punktet
             // (håndterer at man bytter svar frem og tilbake)

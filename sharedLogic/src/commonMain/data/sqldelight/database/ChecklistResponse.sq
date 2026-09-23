@@ -36,6 +36,12 @@ SELECT *
 FROM ChecklistResponse
 WHERE id = ?1;
 
+-- Svaret på ett punkt i én kjøring. Det finnes høyst ett, jf. UNIQUE over.
+getResponseForRunAndItem:
+SELECT *
+FROM ChecklistResponse
+WHERE checklistRunId = ?1 AND itemId = ?2;
+
 getResponsesForRun:
 SELECT *
 FROM ChecklistResponse

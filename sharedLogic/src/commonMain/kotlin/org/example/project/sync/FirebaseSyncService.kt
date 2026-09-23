@@ -382,15 +382,36 @@ class FirebaseSyncService(private val db: AppDatabase) {
             }
         }
         responsesQuery(since).get().documents.forEach { doc ->
-            val dto = doc.data(ResponseDto.serializer())
-            val local = db.checklistResponseQueries.getResponseById(dto.id).executeAsOneOrNull()
-            if (local == null || dto.updatedAt > local.updatedAt) {
-                db.checklistResponseQueries.applyRemoteResponse(
-                    dto.id, dto.checklistRunId, dto.itemId, dto.result, dto.comment, dto.reading,
-                    dto.checkedAt, dto.resolved, dto.resolvedAt, dto.resolvedReading,
-                    dto.resolvedVia, dto.resolvedByRunId, dto.resolvedByUserId, dto.updatedAt,
-                )
-            }
+            applyRemoteResponse(doc.data(ResponseDto.serializer()))
         }
+    }
+
+    /**
+     * Legger inn et svar fra skyen hvis det er nyere enn det enheten har.
+     *
+     * Sammenligner mot svaret på samme punkt i samme kjøring, ikke mot samme
+     * id. Eldre appversjoner ga svaret ny id hver gang det ble endret, så
+     * Firestore kan ha flere dokumenter for ett punkt – og de kan ikke slettes
+     * (reglene forbyr det). Ble de sammenlignet på id, fant ikke enheten det
+     * gamle dokumentet lokalt og la det inn, og INSERT OR REPLACE erstattet da
+     * det nyere svaret via UNIQUE (checklistRunId, itemId). Hvilket svar som
+     * ble stående, avhang av rekkefølgen Firestore returnerte dokumentene i.
+     *
+     * Likt tidsstempel avgjøres på id, slik at alle enheter lander på samme
+     * svar uansett rekkefølge.
+     */
+    internal fun applyRemoteResponse(dto: ResponseDto) {
+        val local = db.checklistResponseQueries
+            .getResponseForRunAndItem(dto.checklistRunId, dto.itemId)
+            .executeAsOneOrNull()
+        val remoteWins = local == null ||
+            dto.updatedAt > local.updatedAt ||
+            (dto.updatedAt == local.updatedAt && dto.id > local.id)
+        if (!remoteWins) return
+        db.checklistResponseQueries.applyRemoteResponse(
+            dto.id, dto.checklistRunId, dto.itemId, dto.result, dto.comment, dto.reading,
+            dto.checkedAt, dto.resolved, dto.resolvedAt, dto.resolvedReading,
+            dto.resolvedVia, dto.resolvedByRunId, dto.resolvedByUserId, dto.updatedAt,
+        )
     }
 }

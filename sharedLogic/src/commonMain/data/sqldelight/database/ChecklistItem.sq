@@ -63,8 +63,9 @@ WHERE templateId = ?1 AND deleted = 0;
 getUnsyncedItems:
 SELECT * FROM ChecklistItem WHERE synced = 0;
 
+-- Bare hvis raden ikke er endret siden den ble sendt, se FirebaseSyncService.pushRow
 markItemSynced:
-UPDATE ChecklistItem SET synced = 1 WHERE id = ?1;
+UPDATE ChecklistItem SET synced = 1 WHERE id = ?1 AND updatedAt = ?2;
 
 applyRemoteItem:
 INSERT OR REPLACE INTO ChecklistItem(id, templateId, title, description, requiresValue, unit, minValue, maxValue, sortOrder, phase, updatedAt, deleted, synced)

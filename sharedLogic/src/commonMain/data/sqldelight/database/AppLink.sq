@@ -40,8 +40,9 @@ SELECT * FROM AppLink WHERE id = ?1;
 getUnsyncedLinks:
 SELECT * FROM AppLink WHERE synced = 0;
 
+-- Bare hvis raden ikke er endret siden den ble sendt, se FirebaseSyncService.pushRow
 markLinkSynced:
-UPDATE AppLink SET synced = 1 WHERE id = ?1;
+UPDATE AppLink SET synced = 1 WHERE id = ?1 AND updatedAt = ?2;
 
 applyRemoteLink:
 INSERT OR REPLACE INTO AppLink(id, title, url, sortOrder, updatedAt, deleted, synced)

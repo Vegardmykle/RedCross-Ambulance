@@ -72,8 +72,9 @@ WHERE deleted = 0;
 getUnsyncedTemplates:
 SELECT * FROM ChecklistTemplate WHERE synced = 0;
 
+-- Bare hvis raden ikke er endret siden den ble sendt, se FirebaseSyncService.pushRow
 markTemplateSynced:
-UPDATE ChecklistTemplate SET synced = 1 WHERE id = ?1;
+UPDATE ChecklistTemplate SET synced = 1 WHERE id = ?1 AND updatedAt = ?2;
 
 applyRemoteTemplate:
 INSERT OR REPLACE INTO ChecklistTemplate(id, name, type, parentId, sortOrder, version, updatedAt, deleted, synced)

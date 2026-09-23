@@ -135,7 +135,7 @@ migrasjonene og `.sq`-filene ikke ender opp med samme skjema.
 ./gradlew :sharedLogic:testAndroidHostTest
 ```
 
-118 tester dekker det som har konsekvenser hvis det svikter: signering og
+122 tester dekker det som har konsekvenser hvis det svikter: signering og
 fullføring, grenseverdier på målinger, avvikslivssyklusen, tilstanden
 sjekklisteskjermen viser, og at migrasjonene faktisk kan leses etterpå. Hver test kjører
 mot en egen SQLite-database i minnet – ingen emulator eller nettverk.

@@ -122,8 +122,9 @@ WHERE id = ?1;
 getUnsyncedRuns:
 SELECT * FROM ChecklistRun WHERE synced = 0;
 
+-- Bare hvis raden ikke er endret siden den ble sendt, se FirebaseSyncService.pushRow
 markRunSynced:
-UPDATE ChecklistRun SET synced = 1 WHERE id = ?1;
+UPDATE ChecklistRun SET synced = 1 WHERE id = ?1 AND updatedAt = ?2;
 
 applyRemoteRun:
 INSERT OR REPLACE INTO ChecklistRun(id, templateId, ambulanceId, userId, createdAt, completedAt, status, comment, beforeSignedAt, beforeUserId, updatedAt, synced)

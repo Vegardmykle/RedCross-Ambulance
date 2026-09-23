@@ -132,7 +132,9 @@ class MoveBagTest {
         val s = scenario()
         val bagId = s.addBag("Akuttkoffert")
         val weekly = s.weeklyList()
-        s.db.checklistTemplateQueries.markTemplateSynced(bagId)
+        s.db.checklistTemplateQueries.markTemplateSynced(
+            bagId, s.db.checklistTemplateQueries.getTemplateById(bagId).executeAsOne().updatedAt,
+        )
 
         s.repo.moveBag(bagId, weekly)
 

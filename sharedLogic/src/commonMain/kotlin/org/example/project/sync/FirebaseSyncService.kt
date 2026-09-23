@@ -226,6 +226,12 @@ class FirebaseSyncService(private val db: AppDatabase) {
      * Pusher én rad. En enkelt avvist skriving (f.eks. en sikkerhetsregel som
      * blokkerer et bestemt dokument) skal ikke stoppe resten av synkroniseringen
      * – raden blir stående usynket og forsøkes på nytt neste gang.
+     *
+     * Raden merkes synket bare hvis updatedAt fortsatt er den som ble sendt.
+     * Synken går i bakgrunnen mens mannskapet jobber videre – typisk rett
+     * etter signering – og en endring som kom mens skrivingen til Firestore
+     * pågikk ble ellers merket synket uten å være sendt. Den nådde da aldri
+     * de andre bilene, med mindre raden ble endret på nytt.
      */
     private inline fun pushRow(
         outcome: PushOutcome,
@@ -250,7 +256,7 @@ class FirebaseSyncService(private val db: AppDatabase) {
                 firestore.collection("templates").document(r.id).set(
                     TemplateDto(r.id, r.name, r.type, r.parentId, r.sortOrder, r.version, r.updatedAt, r.deleted)
                 )
-                db.checklistTemplateQueries.markTemplateSynced(r.id)
+                db.checklistTemplateQueries.markTemplateSynced(r.id, r.updatedAt)
             }
         }
         db.checklistItemQueries.getUnsyncedItems().executeAsList().forEach { r ->
@@ -260,7 +266,7 @@ class FirebaseSyncService(private val db: AppDatabase) {
                         r.unit, r.minValue, r.maxValue, r.sortOrder, r.phase,
                         r.updatedAt, r.deleted)
                 )
-                db.checklistItemQueries.markItemSynced(r.id)
+                db.checklistItemQueries.markItemSynced(r.id, r.updatedAt)
             }
         }
         db.userQueries.getUnsyncedUsers().executeAsList().forEach { r ->
@@ -268,7 +274,7 @@ class FirebaseSyncService(private val db: AppDatabase) {
                 firestore.collection("users").document(r.id).set(
                     UserDto(r.id, r.name, r.role, r.updatedAt, r.deleted)
                 )
-                db.userQueries.markUserSynced(r.id)
+                db.userQueries.markUserSynced(r.id, r.updatedAt)
             }
         }
         db.ambulanceQueries.getUnsyncedAmbulances().executeAsList().forEach { r ->
@@ -276,7 +282,7 @@ class FirebaseSyncService(private val db: AppDatabase) {
                 firestore.collection("ambulances").document(r.id).set(
                     AmbulanceDto(r.id, r.callSign, r.registrationNumber, r.updatedAt, r.deleted)
                 )
-                db.ambulanceQueries.markAmbulanceSynced(r.id)
+                db.ambulanceQueries.markAmbulanceSynced(r.id, r.updatedAt)
             }
         }
         db.appLinkQueries.getUnsyncedLinks().executeAsList().forEach { r ->
@@ -284,7 +290,7 @@ class FirebaseSyncService(private val db: AppDatabase) {
                 firestore.collection("links").document(r.id).set(
                     LinkDto(r.id, r.title, r.url, r.sortOrder, r.updatedAt, r.deleted)
                 )
-                db.appLinkQueries.markLinkSynced(r.id)
+                db.appLinkQueries.markLinkSynced(r.id, r.updatedAt)
             }
         }
         db.checklistRunQueries.getUnsyncedRuns().executeAsList().forEach { r ->
@@ -294,7 +300,7 @@ class FirebaseSyncService(private val db: AppDatabase) {
                         r.completedAt, r.status, r.comment,
                         r.beforeSignedAt, r.beforeUserId, r.updatedAt)
                 )
-                db.checklistRunQueries.markRunSynced(r.id)
+                db.checklistRunQueries.markRunSynced(r.id, r.updatedAt)
             }
         }
         db.checklistResponseQueries.getUnsyncedResponses().executeAsList().forEach { r ->
@@ -304,7 +310,7 @@ class FirebaseSyncService(private val db: AppDatabase) {
                         r.checkedAt, r.resolved, r.resolvedAt, r.resolvedReading, r.resolvedVia,
                         r.resolvedByRunId, r.resolvedByUserId, r.updatedAt)
                 )
-                db.checklistResponseQueries.markResponseSynced(r.id)
+                db.checklistResponseQueries.markResponseSynced(r.id, r.updatedAt)
             }
         }
 

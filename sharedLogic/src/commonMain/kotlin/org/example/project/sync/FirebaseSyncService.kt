@@ -92,8 +92,8 @@ class FirebaseSyncService(private val db: AppDatabase) {
             // kunne overskrive nyere endringer fra de andre bilene med sin egen
             // utdaterte versjon. Ved å hente først blir lokale rader som er
             // eldre enn skyen erstattet – og dermed ikke lenger usynkede.
-            pullRemoteChanges()
-            log("pull ferdig")
+            val pullSkipped = pullRemoteChanges()
+            log("pull ferdig ($pullSkipped hoppet over)")
 
             // Push kan feile per rad uten å kaste, slik at én avvist rad ikke
             // stopper resten
@@ -103,15 +103,29 @@ class FirebaseSyncService(private val db: AppDatabase) {
             // Bokføres først når hentingen faktisk lyktes. Feiler den, står
             // det gamle merket, og neste forsøk henter samme periode om igjen
             // i stedet for å hoppe over den.
-            db.syncStateQueries.setSyncValue(LAST_PULL_KEY, startedAt)
+            //
+            // Det samme gjelder når enkeltdokumenter ble hoppet over: flyttes
+            // merket forbi dem, hentes de aldri igjen – heller ikke etter at
+            // appen er oppdatert til en versjon som kan lese dem. Prisen er at
+            // hentevinduet vokser til feilen er rettet, og det synes i banneret.
+            if (pullSkipped == 0) {
+                db.syncStateQueries.setSyncValue(LAST_PULL_KEY, startedAt)
+            }
 
-            _status.value = if (lastPushFailures > 0) {
-                SyncStatus.Error(
-                    "$lastPushFailures endring(er) ble ikke lagret i skyen. " +
-                        (lastPushError ?: "")
-                )
-            } else {
+            val problems = buildList {
+                if (pullSkipped > 0) {
+                    add("$pullSkipped dokument(er) fra skyen kunne ikke leses. " +
+                        "Oppdater appen hvis feilen ikke går over.")
+                }
+                if (lastPushFailures > 0) {
+                    add("$lastPushFailures endring(er) ble ikke lagret i skyen. " +
+                        (lastPushError ?: ""))
+                }
+            }
+            _status.value = if (problems.isEmpty()) {
                 SyncStatus.Idle
+            } else {
+                SyncStatus.Error(problems.joinToString(" "))
             }
         } catch (e: Exception) {
             // Uten denne loggen forsvinner synkfeil sporløst – kallerne bruker try?
@@ -321,10 +335,21 @@ class FirebaseSyncService(private val db: AppDatabase) {
     private var lastPushFailures = 0
     private var lastPushError: String? = null
 
-    private suspend fun pullRemoteChanges() = withContext(Dispatchers.Default) {
+    /**
+     * Henter alle samlinger og returnerer antall dokumenter som ble hoppet over.
+     *
+     * Hvert dokument legges inn for seg, som i push. Tidligere avbrøt ett
+     * dokument som ikke lot seg lese – feil format, eller en verdi som
+     * CHECK-betingelsene i skjemaet avviser, f.eks. en status innført av en
+     * nyere appversjon – hele hentingen. Siden samme dokument ble hentet på
+     * nytt hver gang, fikk enheten da aldri mer noe fra de andre bilene.
+     */
+    private suspend fun pullRemoteChanges(): Int = withContext(Dispatchers.Default) {
+        var skipped = 0
+
         val templateDocs = firestore.collection("templates").get().documents
         log("pull: fant ${templateDocs.size} maler i skyen")
-        templateDocs.forEach { doc ->
+        skipped += pullEach("templates", templateDocs, { it.id }) { doc ->
             val dto = doc.data(TemplateDto.serializer())
             val local = db.checklistTemplateQueries.getTemplateById(dto.id).executeAsOneOrNull()
             if (local == null || dto.updatedAt > local.updatedAt) {
@@ -334,7 +359,7 @@ class FirebaseSyncService(private val db: AppDatabase) {
                 )
             }
         }
-        firestore.collection("items").get().documents.forEach { doc ->
+        skipped += pullEach("items", firestore.collection("items").get().documents, { it.id }) { doc ->
             val dto = doc.data(ItemDto.serializer())
             val local = db.checklistItemQueries.getItemById(dto.id).executeAsOneOrNull()
             if (local == null || dto.updatedAt > local.updatedAt) {
@@ -345,14 +370,14 @@ class FirebaseSyncService(private val db: AppDatabase) {
                 )
             }
         }
-        firestore.collection("users").get().documents.forEach { doc ->
+        skipped += pullEach("users", firestore.collection("users").get().documents, { it.id }) { doc ->
             val dto = doc.data(UserDto.serializer())
             val local = db.userQueries.getUserByIdAny(dto.id).executeAsOneOrNull()
             if (local == null || dto.updatedAt > local.updatedAt) {
                 db.userQueries.applyRemoteUser(dto.id, dto.name, dto.role, dto.updatedAt, dto.deleted)
             }
         }
-        firestore.collection("ambulances").get().documents.forEach { doc ->
+        skipped += pullEach("ambulances", firestore.collection("ambulances").get().documents, { it.id }) { doc ->
             val dto = doc.data(AmbulanceDto.serializer())
             val local = db.ambulanceQueries.getAmbulanceById(dto.id).executeAsOneOrNull()
             if (local == null || dto.updatedAt > local.updatedAt) {
@@ -361,7 +386,7 @@ class FirebaseSyncService(private val db: AppDatabase) {
                 )
             }
         }
-        firestore.collection("links").get().documents.forEach { doc ->
+        skipped += pullEach("links", firestore.collection("links").get().documents, { it.id }) { doc ->
             val dto = doc.data(LinkDto.serializer())
             val local = db.appLinkQueries.getLinkById(dto.id).executeAsOneOrNull()
             if (local == null || dto.updatedAt > local.updatedAt) {
@@ -376,7 +401,7 @@ class FirebaseSyncService(private val db: AppDatabase) {
         log(if (since == null) "pull: full henting av kjøringer og svar"
             else "pull: kjøringer og svar endret etter $since")
 
-        runsQuery(since).get().documents.forEach { doc ->
+        skipped += pullEach("runs", runsQuery(since).get().documents, { it.id }) { doc ->
             val dto = doc.data(RunDto.serializer())
             val local = db.checklistRunQueries.getRunById(dto.id).executeAsOneOrNull()
             if (local == null || dto.updatedAt > local.updatedAt) {
@@ -387,9 +412,33 @@ class FirebaseSyncService(private val db: AppDatabase) {
                 )
             }
         }
-        responsesQuery(since).get().documents.forEach { doc ->
+        skipped += pullEach("responses", responsesQuery(since).get().documents, { it.id }) { doc ->
             applyRemoteResponse(doc.data(ResponseDto.serializer()))
         }
+        skipped
+    }
+
+    /**
+     * Legger inn dokumentene i én samling hver for seg, og returnerer hvor
+     * mange som ble hoppet over. Et dokument som ikke kan leses eller lagres
+     * logges og hoppes over; resten legges inn som normalt.
+     */
+    internal fun <D> pullEach(
+        collection: String,
+        docs: List<D>,
+        idOf: (D) -> String,
+        apply: (D) -> Unit,
+    ): Int {
+        var skipped = 0
+        docs.forEach { doc ->
+            try {
+                apply(doc)
+            } catch (e: Exception) {
+                skipped++
+                log("pull hoppet over $collection/${idOf(doc)}: ${e.message}")
+            }
+        }
+        return skipped
     }
 
     /**

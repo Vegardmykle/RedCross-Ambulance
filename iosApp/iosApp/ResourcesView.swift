@@ -8,7 +8,9 @@ struct ResourcesView: View {
 
     @Environment(\.openURL) private var openURL
 
-    @State private var documents: [Document] = []
+    // Kvalifisert fordi SwiftUI fra iOS 27 har sin egen `Document`-protokoll.
+    // Uten modulnavnet er typen tvetydig, og appen bygger ikke.
+    @State private var documents: [SharedLogic.Document] = []
     @State private var links: [AppLink] = []
     @State private var users: [User] = []
     @State private var showAddUser = false
@@ -24,7 +26,7 @@ struct ResourcesView: View {
     @State private var showImporter = false
     @State private var editingLink: AppLink?
     @State private var showAddLink = false
-    @State private var deleteDocTarget: Document?
+    @State private var deleteDocTarget: SharedLogic.Document?
     @State private var deleteLinkTarget: AppLink?
     @State private var linkTitle = ""
     @State private var linkUrl = ""
@@ -421,13 +423,13 @@ struct ResourcesView: View {
             .keyboardType(.URL)
     }
 
-    private func openDocument(_ document: Document) {
+    private func openDocument(_ document: SharedLogic.Document) {
         if !storage.openPdf(path: document.uri) {
             errorMessage = "Fant ikke PDF-en på enheten. Slett raden og legg den til på nytt."
         }
     }
 
-    private func performDeleteDocument(_ document: Document) {
+    private func performDeleteDocument(_ document: SharedLogic.Document) {
         Task {
             storage.delete(path: document.uri)
             _ = try? await repo.deleteDocument(id: document.id)

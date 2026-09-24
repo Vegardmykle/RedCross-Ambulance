@@ -14,6 +14,18 @@ set -e
 
 SOURCE_DIR="${SRCROOT}/iosApp/Firebase"
 
+# Mappa iosApp/iosApp er synkronisert med target-et: alt som ligger der
+# kopieres inn i appen av «Copy Bundle Resources», som kjører ETTER dette
+# skriptet. En løs GoogleService-Info.plist der overskriver derfor valget
+# under – det er slik TEST-appen havnet mot produksjon i september 2026.
+STRAY="${SRCROOT}/iosApp/GoogleService-Info.plist"
+if [ -f "${STRAY}" ]; then
+    echo "error: ${STRAY} må fjernes. Den overskriver miljøvalget og kan få"
+    echo "error: testappen til å skrive til produksjon. Filene hører hjemme i"
+    echo "error: iosApp/iosApp/Firebase/ som -Dev.plist og -Prod.plist."
+    exit 1
+fi
+
 if [ "${CONFIGURATION}" = "Release" ]; then
     SOURCE="${SOURCE_DIR}/GoogleService-Info-Prod.plist"
     ENVIRONMENT="produksjon"

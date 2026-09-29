@@ -306,4 +306,37 @@ class TwoPhaseShiftTest {
         assertTrue(s.repo.runsAwaitingClosure().first().isEmpty())
         assertFailsWith<IllegalStateException> { s.repo.closeRunWithoutSigning(runId) }
     }
+
+    // ---------- Gjenåpning uten endringer ----------
+
+    @Test
+    fun `gjenapnet for-del beholder signaturen nar svaret ikke endres`() = runTest {
+        val s = scenario()
+        val before = s.beforeItem("Brannslukker")
+        s.afterItem("Oksygen skrudd av")
+        val runId = s.startRun()
+        s.repo.setResponse(runId, before, ItemResult.JA)
+        s.repo.signBeforeShift(runId, s.userId)
+        val signedAt = s.run(runId).beforeSignedAt
+
+        s.repo.setResponseReopeningBefore(runId, before, ItemResult.JA)
+
+        assertEquals(signedAt, s.run(runId).beforeSignedAt, "Ingenting er endret – signaturen står")
+        assertEquals(1, s.repo.runsAwaitingClosure().first().size)
+    }
+
+    @Test
+    fun `gjenapnet for-del mister signaturen nar et svar endres`() = runTest {
+        val s = scenario()
+        val before = s.beforeItem("Brannslukker")
+        s.afterItem("Oksygen skrudd av")
+        val runId = s.startRun()
+        s.repo.setResponse(runId, before, ItemResult.JA)
+        s.repo.signBeforeShift(runId, s.userId)
+
+        s.repo.setResponseReopeningBefore(runId, before, ItemResult.NEI, comment = "Tom")
+
+        assertNull(s.run(runId).beforeSignedAt, "Endrede svar må signeres på nytt")
+        assertEquals("NEI", s.responseFor(runId, before).result)
+    }
 }

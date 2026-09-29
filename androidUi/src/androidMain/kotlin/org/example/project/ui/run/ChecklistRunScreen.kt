@@ -100,9 +100,14 @@ fun ChecklistRunScreen(
     val ambulanceId = ambulances.firstOrNull { it.id == selection.selectedId }?.id
 
     var run by remember { mutableStateOf<ChecklistRun?>(null) }
+    // «Gjenåpne» er trykket, men ingenting er endret ennå. Signaturen står i
+    // databasen til et svar faktisk endres, så går man ut uten å endre noe,
+    // er vakta der den var.
+    var beforeReopened by remember { mutableStateOf(false) }
     androidx.compose.runtime.LaunchedEffect(template?.id, ambulanceId) {
         val t = template ?: return@LaunchedEffect
         val a = ambulanceId ?: return@LaunchedEffect
+        beforeReopened = false
         run = try {
             // Påminnelsen om uavsluttet vakt åpner akkurat den vakta, uansett
             // alder. Via startOrResumeRun ville en gammel vakt blitt utløpt.
@@ -136,6 +141,7 @@ fun ChecklistRunScreen(
         items = treeItems,
         responses = responses,
         run = run,
+        beforeReopened = beforeReopened,
     )
 
     val scope = rememberCoroutineScope()
@@ -159,7 +165,11 @@ fun ChecklistRunScreen(
         val r = run ?: return
         scope.launch {
             try {
-                repo.setResponse(r.id, item.id, result, comment, reading)
+                if (beforeReopened) {
+                    repo.setResponseReopeningBefore(r.id, item.id, result, comment, reading)
+                } else {
+                    repo.setResponse(r.id, item.id, result, comment, reading)
+                }
             } catch (e: Exception) {
                 // Et svar som ikke ble lagret må mannskapet få vite om –
                 // ellers tror de utstyret er kontrollert
@@ -358,8 +368,8 @@ fun ChecklistRunScreen(
             title = { Text("Gjenåpne før-kontrollen?") },
             text = {
                 Text(
-                    "Signaturen fjernes, og du kan endre svarene. " +
-                        "Før-kontrollen må signeres på nytt før vakta kan avsluttes."
+                    "Du kan endre svarene. Endrer du noe, må før-kontrollen " +
+                        "signeres på nytt før vakta kan avsluttes."
                 )
             },
             dismissButton = {
@@ -367,18 +377,8 @@ fun ChecklistRunScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val r = run
                     showReopenConfirm = false
-                    if (r != null) {
-                        scope.launch {
-                            try {
-                                repo.reopenBeforeShift(r.id)
-                                run = repo.runById(r.id)
-                            } catch (e: Exception) {
-                                saveError = e.message ?: "Kunne ikke gjenåpne"
-                            }
-                        }
-                    }
+                    beforeReopened = true
                 }) { Text("Gjenåpne") }
             },
         )
@@ -398,7 +398,11 @@ fun ChecklistRunScreen(
                     // Lokal lagring er det som teller – signaturen er gyldig
                     // i det den ligger i SQLite, uavhengig av dekning
                     if (signingBefore) {
-                        repo.signBeforeShift(r.id, userId)
+                        // Gjenåpnet uten endringer: den opprinnelige signaturen står
+                        if (repo.runById(r.id)?.beforeSignedAt == null) {
+                            repo.signBeforeShift(r.id, userId)
+                        }
+                        beforeReopened = false
                         run = repo.runById(r.id)
                         return@SignDialog true
                     }

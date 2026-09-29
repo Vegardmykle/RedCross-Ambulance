@@ -394,6 +394,35 @@ class ChecklistRepository(
         }
 
     /**
+     * Svar gitt etter at før-delen er gjenåpnet i appen.
+     *
+     * Gjenåpningen er bare en visning til noe faktisk endres – først da
+     * fjernes signaturen. Tidligere ble den fjernet i det man trykket
+     * «Gjenåpne», og gikk man ut uten å endre noe, var vakta borte fra
+     * påminnelsen og måtte signeres på nytt uten grunn.
+     */
+    @Throws(IllegalStateException::class, IllegalArgumentException::class, CancellationException::class)
+    suspend fun setResponseReopeningBefore(
+        runId: String,
+        itemId: String,
+        result: ItemResult,
+        comment: String? = null,
+        reading: String? = null,
+    ): Unit = withContext(Dispatchers.Default) {
+        val existing = db.checklistResponseQueries
+            .getResponseForRunAndItem(runId, itemId).executeAsOneOrNull()
+        val unchanged = existing != null &&
+            existing.result == result.db &&
+            existing.comment.orEmpty() == comment.orEmpty() &&
+            existing.reading.orEmpty() == reading.orEmpty()
+        if (unchanged) return@withContext
+
+        val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
+        if (run?.beforeSignedAt != null) reopenBeforeShift(runId)
+        setResponse(runId, itemId, result, comment, reading)
+    }
+
+    /**
      * Gjenåpner før-vakt-delen så mannskapet kan korrigere den underveis.
      * Mulig helt til kontrollen avsluttes; etter det er alt låst.
      */

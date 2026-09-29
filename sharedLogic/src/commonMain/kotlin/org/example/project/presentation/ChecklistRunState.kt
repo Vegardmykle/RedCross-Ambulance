@@ -93,12 +93,17 @@ data class ChecklistRunState(
  * da flyttet innholdet seg under fingeren på mannskapet – du sikter på ett
  * punkt, lista hopper, og du treffer et annet. Med hansker, i bevegelse,
  * eller for noen med skjelvinger er et feiltrykk på et sikkerhetsskjema dyrt.
+ *
+ * [beforeReopened] betyr at mannskapet har trykket «Gjenåpne», men ennå ikke
+ * endret noe. Før-delen vises da som usignert, mens signaturen står urørt i
+ * databasen – se [org.example.project.data.ChecklistRepository.setResponseReopeningBefore].
  */
 fun checklistRunState(
     rootTemplateId: String,
     items: List<ChecklistItem>,
     responses: List<ChecklistResponse>,
     run: ChecklistRun?,
+    beforeReopened: Boolean = false,
 ): ChecklistRunState {
     val responseByItem = responses.associateBy { it.itemId }
     fun isAnswered(item: ChecklistItem) = responseByItem[item.id] != null
@@ -114,7 +119,7 @@ fun checklistRunState(
         after = PhaseProgress(afterAll.count(::isAnswered), afterAll.size),
         overall = PhaseProgress(items.count(::isAnswered), items.size),
         hasAfterPhase = afterAll.isNotEmpty(),
-        beforeSignedAt = run?.beforeSignedAt,
+        beforeSignedAt = if (beforeReopened) null else run?.beforeSignedAt,
         beforeDeficiencies = deficiencySummaries(beforeAll, responseByItem),
         allDeficiencies = deficiencySummaries(items, responseByItem),
     )

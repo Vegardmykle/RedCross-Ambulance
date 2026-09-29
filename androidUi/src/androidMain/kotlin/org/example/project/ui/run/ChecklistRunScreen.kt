@@ -87,9 +87,13 @@ fun ChecklistRunScreen(
     templateType: String,
     onOpen: (Screen) -> Unit,
     onBack: (() -> Unit)?,
+    runId: String? = null,
+    templateId: String? = null,
 ) {
     val templates by repo.topLevelTemplates().collectAsState(emptyList())
-    val template = templates.firstOrNull { it.type == templateType }
+    val template = templates.firstOrNull {
+        if (templateId != null) it.id == templateId else it.type == templateType
+    }
     val ambulances by repo.ambulances().collectAsState(emptyList())
     val selection = LocalAmbulanceSelection.current
     // Må følge valgt kjøretøy – ellers registreres kontrollen på feil bil
@@ -99,7 +103,11 @@ fun ChecklistRunScreen(
     androidx.compose.runtime.LaunchedEffect(template?.id, ambulanceId) {
         val t = template ?: return@LaunchedEffect
         val a = ambulanceId ?: return@LaunchedEffect
-        run = try { repo.startOrResumeRun(t.id, a) } catch (e: Exception) { null }
+        run = try {
+            // Påminnelsen om uavsluttet vakt åpner akkurat den vakta, uansett
+            // alder. Via startOrResumeRun ville en gammel vakt blitt utløpt.
+            if (runId != null) repo.runById(runId) else repo.startOrResumeRun(t.id, a)
+        } catch (e: Exception) { null }
     }
 
     // Hele treet – hovedliste og sekker. Fremdriften må kjenne sekkepunktene
@@ -365,7 +373,7 @@ fun ChecklistRunScreen(
                         scope.launch {
                             try {
                                 repo.reopenBeforeShift(r.id)
-                                run = repo.startOrResumeRun(r.templateId, r.ambulanceId)
+                                run = repo.runById(r.id)
                             } catch (e: Exception) {
                                 saveError = e.message ?: "Kunne ikke gjenåpne"
                             }
@@ -386,18 +394,22 @@ fun ChecklistRunScreen(
             onDismiss = { showSignDialog = false },
             onSign = { userId ->
                 val r = run ?: return@SignDialog false
-                val t = template ?: return@SignDialog false
                 try {
                     // Lokal lagring er det som teller – signaturen er gyldig
                     // i det den ligger i SQLite, uavhengig av dekning
                     if (signingBefore) {
                         repo.signBeforeShift(r.id, userId)
-                        run = repo.startOrResumeRun(t.id, r.ambulanceId)
+                        run = repo.runById(r.id)
                         return@SignDialog true
                     }
                     repo.completeRun(r.id, userId, null)
+                    // Vakta fra påminnelsen er ferdig – tilbake til dashbordet
+                    if (runId != null && onBack != null) {
+                        onBack()
+                        return@SignDialog true
+                    }
                     justCompleted = true
-                    run = repo.startOrResumeRun(t.id, r.ambulanceId)
+                    run = repo.startOrResumeRun(r.templateId, r.ambulanceId)
                     true
                 } catch (e: Exception) {
                     saveError = e.message ?: "Kunne ikke signere"

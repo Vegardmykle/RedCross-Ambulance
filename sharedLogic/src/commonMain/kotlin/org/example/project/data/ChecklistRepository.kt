@@ -219,26 +219,20 @@ class ChecklistRepository(
      * en døgnbasert regel ville avbrutt dem midtveis. En kontroll som har stått
      * åpen lenger enn [SHIFT_TIMEOUT_MILLIS] regnes som forlatt – den bevares
      * som EXPIRED hvis noe er besvart, ellers slettes den.
+     *
+     * Alle forlatte kontroller ryddes, ikke bare den nyeste. Lå det en nyere
+     * åpen kontroll oppå en gammel, ble den gamle aldri rørt og sto som
+     * påminnelse om uavsluttet vakt i dagevis.
      */
     suspend fun startOrResumeRun(templateId: String, ambulanceId: String): ChecklistRun =
         withContext(Dispatchers.Default) {
-            val open = db.checklistRunQueries.getOpenRun(templateId, ambulanceId).executeAsOneOrNull()
-            if (open != null) {
-                val age = currentTimeMillis() - open.createdAt
-                if (age < SHIFT_TIMEOUT_MILLIS) return@withContext open
-                // En gammel kontroll uten et eneste svar er ingen dokumentasjon –
-                // den slettes i stedet for å bevares som utløpt
-                val answered = db.checklistRunQueries
-                    .countResponsesForRunId(open.id).executeAsOne()
-                if (answered == 0L) {
-                    db.checklistRunQueries.deleteRun(open.id)
-                } else {
-                    db.checklistRunQueries.expireRun(open.id, currentTimeMillis())
-                }
-            }
-            val id = randomId()
-            db.checklistRunQueries.insertRun(id, templateId, ambulanceId, currentTimeMillis())
-            db.checklistRunQueries.getRunById(id).executeAsOne()
+            val now = currentTimeMillis()
+            val (fresh, stale) = db.checklistRunQueries
+                .getOpenRuns(templateId, ambulanceId).executeAsList()
+                .partition { now - it.createdAt < SHIFT_TIMEOUT_MILLIS }
+            stale.forEach { retireRun(it.id) }
+            if (stale.isNotEmpty()) onLocalChange()
+            fresh.firstOrNull() ?: insertNewRun(templateId, ambulanceId)
         }
 
     /**
@@ -246,26 +240,57 @@ class ChecklistRepository(
      *
      * En glemt avslutning skal ikke sperre neste vakt fra å kontrollere bilen.
      * Den gamle kontrollen bevares som utløpt hvis noe er besvart – svarene er
-     * dokumentasjon på hva som faktisk ble sjekket – og blir liggende som
-     * påminnelse om at avslutningen mangler.
+     * dokumentasjon på hva som faktisk ble sjekket.
      */
     @Throws(CancellationException::class)
     suspend fun startNewRun(templateId: String, ambulanceId: String): ChecklistRun =
         withContext(Dispatchers.Default) {
-            val open = db.checklistRunQueries.getOpenRun(templateId, ambulanceId).executeAsOneOrNull()
-            if (open != null) {
-                val answered = db.checklistRunQueries
-                    .countResponsesForRunId(open.id).executeAsOne()
-                if (answered == 0L) {
-                    db.checklistRunQueries.deleteRun(open.id)
-                } else {
-                    db.checklistRunQueries.expireRun(open.id, currentTimeMillis())
-                }
-            }
-            val id = randomId()
-            db.checklistRunQueries.insertRun(id, templateId, ambulanceId, currentTimeMillis())
-            db.checklistRunQueries.getRunById(id).executeAsOne()
+            val open = db.checklistRunQueries.getOpenRuns(templateId, ambulanceId).executeAsList()
+            open.forEach { retireRun(it.id) }
+            if (open.isNotEmpty()) onLocalChange()
+            insertNewRun(templateId, ambulanceId)
         }
+
+    /**
+     * Henter én bestemt kontroll. Påminnelsen om uavsluttet vakt må åpne
+     * akkurat den vakta – uansett alder – og ikke den nyeste åpne kontrollen
+     * for lista.
+     */
+    @Throws(CancellationException::class)
+    suspend fun runById(runId: String): ChecklistRun? = withContext(Dispatchers.Default) {
+        db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
+    }
+
+    /**
+     * Lukker en vakt uten avslutningssignatur, for når ingen kan eller vil
+     * signere den i ettertid. Kontrollen bevares som utløpt – svarene er
+     * dokumentasjon – og forsvinner fra påminnelsen.
+     */
+    @Throws(IllegalStateException::class, CancellationException::class)
+    suspend fun closeRunWithoutSigning(runId: String): Unit = withContext(Dispatchers.Default) {
+        val run = db.checklistRunQueries.getRunById(runId).executeAsOneOrNull()
+        check(run != null && run.status == RunStatus.IN_PROGRESS.db) {
+            "Kontrollen er allerede lukket"
+        }
+        db.checklistRunQueries.expireRun(runId, currentTimeMillis())
+        onLocalChange()
+    }
+
+    /** En kontroll uten et eneste svar er ingen dokumentasjon og slettes; ellers utløper den. */
+    private fun retireRun(runId: String) {
+        val answered = db.checklistRunQueries.countResponsesForRunId(runId).executeAsOne()
+        if (answered == 0L) {
+            db.checklistRunQueries.deleteRun(runId)
+        } else {
+            db.checklistRunQueries.expireRun(runId, currentTimeMillis())
+        }
+    }
+
+    private fun insertNewRun(templateId: String, ambulanceId: String): ChecklistRun {
+        val id = randomId()
+        db.checklistRunQueries.insertRun(id, templateId, ambulanceId, currentTimeMillis())
+        return db.checklistRunQueries.getRunById(id).executeAsOne()
+    }
 
     fun responsesForRun(runId: String): Flow<List<ChecklistResponse>> =
         db.checklistResponseQueries.getResponsesForRun(runId)

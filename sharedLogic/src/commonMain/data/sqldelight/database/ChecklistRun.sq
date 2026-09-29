@@ -28,12 +28,15 @@ insertRun:
 INSERT INTO ChecklistRun(id, templateId, ambulanceId, userId, createdAt, completedAt, status, comment, beforeSignedAt, beforeUserId, updatedAt, synced)
 VALUES (?1, ?2, ?3, NULL, ?4, NULL, 'IN_PROGRESS', NULL, NULL, NULL, ?4, 0);
 
-getOpenRun:
+-- Alle åpne kontroller for samme liste og bil, nyeste først. Det kan ligge
+-- flere: en vakt som aldri ble avsluttet, og en nyere fra en annen enhet.
+-- Tidligere ble bare den nyeste sett på, og de eldre ble stående åpne for
+-- alltid som påminnelse ingen kunne lukke.
+getOpenRuns:
 SELECT *
 FROM ChecklistRun
 WHERE templateId = ?1 AND ambulanceId = ?2 AND status = 'IN_PROGRESS'
-ORDER BY createdAt DESC
-LIMIT 1;
+ORDER BY createdAt DESC;
 
 getRunById:
 SELECT *

@@ -1,6 +1,7 @@
 package org.example.project.ui.dashboard
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.ViewWeek
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -39,11 +41,13 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +57,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import org.example.project.data.ChecklistRepository
 import org.example.project.presentation.dashboardState
 import org.example.project.ui.design.LocalIsCompact
@@ -90,6 +95,10 @@ fun DashboardScreen(
     // Uten dette ville en glemt avslutning bare forsvunnet i stillhet.
     val awaitingClosure by repo.runsAwaitingClosure().collectAsState(emptyList())
     val openShift = awaitingClosure.firstOrNull { it.ambulanceId == ambulance?.id }
+    val scope = rememberCoroutineScope()
+    val closeShift: (String) -> Unit = { id ->
+        scope.launch { runCatching { repo.closeRunWithoutSigning(id) } }
+    }
     // Periodestatus for valgt kjøretøy. Regelen ligger i sharedLogic og deles
     // med iOS; grensene er kalenderbaserte, så en ukessjekk gjelder ut uka.
     val latestByType by remember(ambulance?.id) {
@@ -121,6 +130,7 @@ fun DashboardScreen(
             onGoToArchive = onGoToArchive,
             openLink = { url -> runCatching { uriHandler.openUri(normalizeUrl(url)) } },
             openShift = openShift,
+            onCloseShift = closeShift,
         )
         return
     }
@@ -138,7 +148,7 @@ fun DashboardScreen(
                 onSelect = selection.select,
             )
 
-            OpenShiftCard(openShift) { onOpen(Screen.Run("DAILY")) }
+            OpenShiftCard(openShift, onOpen, closeShift)
 
             OutlinedCard {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -297,6 +307,7 @@ private fun PhoneDashboard(
     onGoToArchive: () -> Unit,
     openLink: (String) -> Unit,
     openShift: database.GetRunsAwaitingClosure? = null,
+    onCloseShift: (String) -> Unit = {},
 ) {
     val callSign = selected?.callSign
     Column(
@@ -312,7 +323,7 @@ private fun PhoneDashboard(
             onSelect = onSelectAmbulance,
         )
 
-        OpenShiftCard(openShift) { onOpen(Screen.Run("DAILY")) }
+        OpenShiftCard(openShift, onOpen, onCloseShift)
 
         // Dagens gjøremål-kort (hvitt kort med kapsel-badge, som iOS)
         PhoneCard {
@@ -414,10 +425,14 @@ private fun PhoneDashboard(
 @Composable
 private fun OpenShiftCard(
     run: database.GetRunsAwaitingClosure?,
-    onOpen: () -> Unit,
+    onOpen: (Screen) -> Unit,
+    onClose: (String) -> Unit,
 ) {
     if (run == null) return
-    OutlinedCard(onClick = onOpen) {
+    var confirmClose by remember { mutableStateOf(false) }
+    // Åpner akkurat denne vakta – ikke dagens daglige liste, som kan være en
+    // helt annen kontroll
+    OutlinedCard(onClick = { onOpen(Screen.Run("DAILY", runId = run.id, templateId = run.templateId)) }) {
         Column(
             Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -446,7 +461,35 @@ private fun OpenShiftCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            TextButton(
+                onClick = { confirmClose = true },
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                Text("Avslutt uten signering", color = MaterialTheme.colorScheme.error)
+            }
         }
+    }
+
+    if (confirmClose) {
+        AlertDialog(
+            onDismissRequest = { confirmClose = false },
+            title = { Text("Avslutte vakta uten signering?") },
+            text = {
+                Text(
+                    "Svarene fra før-kontrollen bevares, men vakta står som " +
+                        "utløpt og ikke signert avsluttet."
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClose = false }) { Text("Avbryt") }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmClose = false
+                    onClose(run.id)
+                }) { Text("Avslutt uten signering") }
+            },
+        )
     }
 }
 

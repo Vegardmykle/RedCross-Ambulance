@@ -155,7 +155,7 @@ struct DashboardView: View {
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.white)
+                .background(Color.rkCard)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
             .buttonStyle(.plain)
@@ -274,7 +274,7 @@ struct DashboardView: View {
             }
         }
         .padding()
-        .background(Color.white)
+        .background(Color.rkCard)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -359,7 +359,7 @@ struct DashboardView: View {
                         }
                     }
                     .padding()
-                    .background(Color.white)
+                    .background(Color.rkCard)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .buttonStyle(.plain)

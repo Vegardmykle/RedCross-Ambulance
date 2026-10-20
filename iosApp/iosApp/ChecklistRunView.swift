@@ -48,10 +48,15 @@ struct ChecklistRunView: View {
 /// Selve sjekkliste-skjermen. Kan pushes fra dashboardet med annen listetype.
 struct ChecklistRunScreen: View {
     var templateType = "DAILY"
+    /// Satt når påminnelsen om uavsluttet vakt åpner en bestemt kontroll.
+    /// Da åpnes akkurat den – uansett alder – og ikke nyeste åpne for lista.
+    var runId: String? = nil
+    var templateId: String? = nil
 
     private let repo = AppDependencies.shared.repository
 
     @AppStorage("selectedAmbulanceId") private var selectedAmbulanceId = ""
+    @Environment(\.dismiss) private var dismiss
 
     @State private var template: ChecklistTemplate?
     @State private var run: ChecklistRun?
@@ -63,6 +68,11 @@ struct ChecklistRunScreen: View {
     @State private var earlierDeficiencyItemIds: Set<String> = []
     @State private var showSignSheet = false
     @State private var justCompleted = false
+    @State private var leaveAfterSheet = false
+    /// «Gjenåpne» er trykket, men ingenting er endret ennå. Signaturen står
+    /// i databasen til et svar faktisk endres, så går man ut uten å endre
+    /// noe, er vakta der den var.
+    @State private var beforeReopened = false
     @State private var showEditWarning = false
     @State private var navigateToEdit = false
     @State private var showReopenConfirm = false
@@ -83,7 +93,8 @@ struct ChecklistRunScreen: View {
             rootTemplateId: template?.id ?? "",
             items: treeItems,
             responses: responseList,
-            run: run
+            run: run,
+            beforeReopened: beforeReopened
         )
     }
 
@@ -126,12 +137,14 @@ struct ChecklistRunScreen: View {
                 Text("Endringer i lista gjelder for alle brukere og alle ambulanser, ikke bare deg.")
             }
             .navigationDestination(isPresented: $navigateToEdit) { editDestination }
-            .sheet(isPresented: $showSignSheet) { signSheet }
+            .sheet(isPresented: $showSignSheet, onDismiss: {
+                if leaveAfterSheet { dismiss() }
+            }) { signSheet }
             .alert("Gjenåpne før-kontrollen?", isPresented: $showReopenConfirm) {
                 Button("Avbryt", role: .cancel) {}
-                Button("Gjenåpne") { Task { await reopenBefore() } }
+                Button("Gjenåpne") { reopenBefore() }
             } message: {
-                Text("Signaturen fjernes, og du kan endre svarene. Før-kontrollen må signeres på nytt før vakta kan avsluttes.")
+                Text("Du kan endre svarene. Endrer du noe, må før-kontrollen signeres på nytt før vakta kan avsluttes.")
             }
     }
 
@@ -293,20 +306,30 @@ struct ChecklistRunScreen: View {
     }
 
     private func signBefore(userId: String) async -> Bool {
-        guard let run, let template else { return false }
+        guard let run else { return false }
         do {
-            try await repo.signBeforeShift(runId: run.id, userId: userId)
-            await loadRun(templateId: template.id)
+            // Gjenåpnet uten endringer: den opprinnelige signaturen står
+            let current = try await repo.runById(runId: run.id)
+            if current?.beforeSignedAt == nil {
+                try await repo.signBeforeShift(runId: run.id, userId: userId)
+            }
+            beforeReopened = false
+            await reloadRun()
             return true
         } catch {
             return false
         }
     }
 
-    private func reopenBefore() async {
-        guard let run, let template else { return }
-        try? await repo.reopenBeforeShift(runId: run.id)
-        await loadRun(templateId: template.id)
+    private func reopenBefore() {
+        beforeReopened = true
+    }
+
+    /// Henter samme kontroll på nytt. Via startOrResumeRun ville en gammel
+    /// vakt åpnet fra påminnelsen blitt utløpt og byttet ut med en ny.
+    private func reloadRun() async {
+        guard let id = run?.id else { return }
+        run = try? await repo.runById(runId: id)
     }
 
     private func observeCrew() async {
@@ -325,7 +348,9 @@ struct ChecklistRunScreen: View {
 
     private func observeTemplates() async {
         for await list in repo.topLevelTemplates() {
-            template = list.first { $0.type == templateType }
+            template = list.first { t in
+                if let templateId { t.id == templateId } else { t.type == templateType }
+            }
         }
     }
 
@@ -439,6 +464,11 @@ struct ChecklistRunScreen: View {
     private func loadRun(templateId: String) async {
         guard !selectedAmbulanceId.isEmpty else { return }
         justCompleted = false
+        beforeReopened = false
+        if let runId {
+            run = try? await repo.runById(runId: runId)
+            return
+        }
         run = try? await repo.startOrResumeRun(
             templateId: templateId,
             ambulanceId: selectedAmbulanceId
@@ -447,6 +477,16 @@ struct ChecklistRunScreen: View {
 
     private func answer(item: ChecklistItem, choice: AnswerChoice, comment: String?, reading: String?) async {
         guard let run else { return }
+        if beforeReopened {
+            try? await repo.setResponseReopeningBefore(
+                runId: run.id,
+                itemId: item.id,
+                result: choice.kotlinValue,
+                comment: comment,
+                reading: reading
+            )
+            return
+        }
         try? await repo.setResponse(
             runId: run.id,
             itemId: item.id,
@@ -460,6 +500,12 @@ struct ChecklistRunScreen: View {
         guard let run, let template else { return false }
         do {
             try await repo.completeRun(runId: run.id, userId: userId, comment: nil)
+            // Vakta fra påminnelsen er ferdig – tilbake til dashbordet når
+            // signeringsarket har lukket seg
+            if runId != nil {
+                leaveAfterSheet = true
+                return true
+            }
             justCompleted = true
             await loadRun(templateId: template.id)
             return true

@@ -9,6 +9,8 @@ struct DashboardView: View {
     @State private var links: [AppLink] = []
     /// Vakter der før-kontrollen er signert, men avslutningen aldri ble gjort
     @State private var awaitingClosure: [GetRunsAwaitingClosure] = []
+    /// Vakta som venter på bekreftelse før den lukkes uten signatur
+    @State private var shiftToClose: GetRunsAwaitingClosure?
     /// Når hver listetype sist ble fullført for valgt kjøretøy
     @State private var latestCompletedByType: [String: KotlinLong] = [:]
     @AppStorage("selectedAmbulanceId") private var selectedAmbulanceId = ""
@@ -135,30 +137,56 @@ struct DashboardView: View {
     @ViewBuilder
     private var openShiftCard: some View {
         if let openShift = awaitingClosure.first(where: { $0.ambulanceId == selectedAmbulance?.id }) {
-            NavigationLink {
-                ChecklistRunScreen(templateType: TemplateType.daily.db)
-            } label: {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Label("Vakt ikke avsluttet", systemImage: "clock.badge.exclamationmark")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.orange)
-                        Spacer()
-                        Image(systemName: "chevron.right")
+            VStack(alignment: .leading, spacing: 12) {
+                // Åpner akkurat denne vakta – ikke dagens daglige liste, som
+                // kan være en helt annen kontroll
+                NavigationLink {
+                    ChecklistRunScreen(runId: openShift.id, templateId: openShift.templateId)
+                } label: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Label("Vakt ikke avsluttet", systemImage: "clock.badge.exclamationmark")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.orange)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(openShiftDetail(openShift))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.leading)
                     }
-                    Text(openShiftDetail(openShift))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.leading)
+                    .contentShape(Rectangle())
                 }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .buttonStyle(.plain)
+
+                Button("Avslutt uten signering", role: .destructive) {
+                    shiftToClose = openShift
+                }
+                .font(.caption)
             }
-            .buttonStyle(.plain)
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.rkCard)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .confirmationDialog(
+                "Avslutte vakta uten signering?",
+                isPresented: Binding(
+                    get: { shiftToClose != nil },
+                    set: { if !$0 { shiftToClose = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Avslutt uten signering", role: .destructive) {
+                    guard let run = shiftToClose else { return }
+                    Task { try? await repo.closeRunWithoutSigning(runId: run.id) }
+                }
+                Button("Avbryt", role: .cancel) {}
+            } message: {
+                Text("Svarene fra før-kontrollen bevares, men vakta står som utløpt og ikke signert avsluttet.")
+            }
         }
     }
 
@@ -274,7 +302,7 @@ struct DashboardView: View {
             }
         }
         .padding()
-        .background(Color.white)
+        .background(Color.rkCard)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -359,7 +387,7 @@ struct DashboardView: View {
                         }
                     }
                     .padding()
-                    .background(Color.white)
+                    .background(Color.rkCard)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .buttonStyle(.plain)

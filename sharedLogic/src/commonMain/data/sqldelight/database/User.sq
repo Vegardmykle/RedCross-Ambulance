@@ -33,8 +33,9 @@ SELECT * FROM User WHERE id = ?1;
 getUnsyncedUsers:
 SELECT * FROM User WHERE synced = 0;
 
+-- Bare hvis raden ikke er endret siden den ble sendt, se FirebaseSyncService.pushRow
 markUserSynced:
-UPDATE User SET synced = 1 WHERE id = ?1;
+UPDATE User SET synced = 1 WHERE id = ?1 AND updatedAt = ?2;
 
 applyRemoteUser:
 INSERT OR REPLACE INTO User(id, name, role, updatedAt, deleted, synced)

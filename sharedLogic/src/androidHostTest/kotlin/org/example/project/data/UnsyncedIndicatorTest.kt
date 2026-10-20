@@ -14,9 +14,9 @@ import kotlin.test.assertEquals
 class UnsyncedIndicatorTest {
 
     private fun TestScenario.markAllSynced(runId: String) {
-        db.checklistRunQueries.markRunSynced(runId)
+        db.checklistRunQueries.markRunSynced(runId, run(runId).updatedAt)
         db.checklistResponseQueries.getResponsesForRun(runId).executeAsList().forEach {
-            db.checklistResponseQueries.markResponseSynced(it.id)
+            db.checklistResponseQueries.markResponseSynced(it.id, it.updatedAt)
         }
     }
 

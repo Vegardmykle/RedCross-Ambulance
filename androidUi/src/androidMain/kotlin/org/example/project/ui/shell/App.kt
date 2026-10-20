@@ -71,7 +71,16 @@ import org.example.project.ui.run.ChecklistRunScreen
 import org.example.project.ui.template.EditTemplateScreen
 
 sealed interface Screen {
-    data class Run(val templateType: String) : Screen
+    /**
+     * Sjekkliste. Med [runId] åpnes akkurat den kontrollen – påminnelsen om
+     * uavsluttet vakt – i stedet for nyeste åpne kontroll for listetypen.
+     * [templateId] går da foran [templateType].
+     */
+    data class Run(
+        val templateType: String,
+        val runId: String? = null,
+        val templateId: String? = null,
+    ) : Screen
     data class RunDetail(val run: GetRecentRuns) : Screen
     data class EditTemplate(val template: ChecklistTemplate) : Screen
 }
@@ -143,6 +152,7 @@ fun App(
                 }
                 is Screen.Run -> ChecklistRunScreen(
                     repository, screen.templateType, onOpen = push, onBack = pop,
+                    runId = screen.runId, templateId = screen.templateId,
                 )
                 is Screen.RunDetail -> RunDetailScreen(repository, screen.run, onBack = pop)
                 is Screen.EditTemplate -> EditTemplateScreen(repository, screen.template, onBack = pop)

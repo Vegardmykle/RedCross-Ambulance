@@ -236,4 +236,107 @@ class TwoPhaseShiftTest {
         )
         assertEquals("IN_PROGRESS", s.run(second).status)
     }
+
+    // ---------- Gammel vakt som aldri ble avsluttet ----------
+
+    /** Flytter en kontroll bakover i tid, som om den ble påbegynt for dager siden. */
+    private fun TestScenario.backdate(runId: String) {
+        val r = run(runId)
+        db.checklistRunQueries.applyRemoteRun(
+            r.id, r.templateId, r.ambulanceId, r.userId,
+            /* createdAt = */ 0L, r.completedAt, r.status, r.comment,
+            r.beforeSignedAt, r.beforeUserId, r.updatedAt,
+        )
+    }
+
+    @Test
+    fun `gammel vakt under en nyere apen kontroll ryddes`() = runTest {
+        val s = scenario()
+        val before = s.beforeItem("Brannslukker")
+        s.afterItem("Oksygen skrudd av")
+        val old = s.startRun()
+        s.repo.setResponse(old, before, ItemResult.JA)
+        s.repo.signBeforeShift(old, s.userId)
+        s.backdate(old)
+        // En nyere åpen kontroll, f.eks. startet på en annen enhet og synket hit
+        val newer = "nyere"
+        s.db.checklistRunQueries.insertRun(newer, s.templateId, s.ambulanceId, System.currentTimeMillis())
+
+        val resumed = s.startRun()
+
+        assertEquals(newer, resumed, "Den nyeste åpne kontrollen gjenopptas")
+        assertEquals("EXPIRED", s.run(old).status, "Den gamle skal ikke bli liggende åpen")
+        assertTrue(s.repo.runsAwaitingClosure().first().isEmpty())
+    }
+
+    @Test
+    fun `gammel vakt kan apnes og avsluttes fra paminnelsen`() = runTest {
+        val s = scenario()
+        val before = s.beforeItem("Brannslukker")
+        val after = s.afterItem("Oksygen skrudd av")
+        val runId = s.startRun()
+        s.repo.setResponse(runId, before, ItemResult.JA)
+        s.repo.signBeforeShift(runId, s.userId)
+        s.backdate(runId)
+
+        // Påminnelsen åpner vakta direkte, uten å gå via startOrResumeRun
+        val opened = assertNotNull(s.repo.runById(runId))
+        assertEquals("IN_PROGRESS", opened.status)
+
+        s.repo.setResponse(runId, after, ItemResult.JA)
+        s.repo.completeRun(runId, s.userId)
+
+        assertEquals("COMPLETED", s.run(runId).status)
+        assertTrue(s.repo.runsAwaitingClosure().first().isEmpty())
+    }
+
+    @Test
+    fun `vakt kan lukkes uten signatur`() = runTest {
+        val s = scenario()
+        val before = s.beforeItem("Brannslukker")
+        s.afterItem("Oksygen skrudd av")
+        val runId = s.startRun()
+        s.repo.setResponse(runId, before, ItemResult.NEI, comment = "Mangler")
+        s.repo.signBeforeShift(runId, s.userId)
+
+        s.repo.closeRunWithoutSigning(runId)
+
+        assertEquals("EXPIRED", s.run(runId).status, "Svarene bevares")
+        assertNull(s.run(runId).completedAt, "Den er ikke signert som avsluttet")
+        assertTrue(s.repo.runsAwaitingClosure().first().isEmpty())
+        assertFailsWith<IllegalStateException> { s.repo.closeRunWithoutSigning(runId) }
+    }
+
+    // ---------- Gjenåpning uten endringer ----------
+
+    @Test
+    fun `gjenapnet for-del beholder signaturen nar svaret ikke endres`() = runTest {
+        val s = scenario()
+        val before = s.beforeItem("Brannslukker")
+        s.afterItem("Oksygen skrudd av")
+        val runId = s.startRun()
+        s.repo.setResponse(runId, before, ItemResult.JA)
+        s.repo.signBeforeShift(runId, s.userId)
+        val signedAt = s.run(runId).beforeSignedAt
+
+        s.repo.setResponseReopeningBefore(runId, before, ItemResult.JA)
+
+        assertEquals(signedAt, s.run(runId).beforeSignedAt, "Ingenting er endret – signaturen står")
+        assertEquals(1, s.repo.runsAwaitingClosure().first().size)
+    }
+
+    @Test
+    fun `gjenapnet for-del mister signaturen nar et svar endres`() = runTest {
+        val s = scenario()
+        val before = s.beforeItem("Brannslukker")
+        s.afterItem("Oksygen skrudd av")
+        val runId = s.startRun()
+        s.repo.setResponse(runId, before, ItemResult.JA)
+        s.repo.signBeforeShift(runId, s.userId)
+
+        s.repo.setResponseReopeningBefore(runId, before, ItemResult.NEI, comment = "Tom")
+
+        assertNull(s.run(runId).beforeSignedAt, "Endrede svar må signeres på nytt")
+        assertEquals("NEI", s.responseFor(runId, before).result)
+    }
 }

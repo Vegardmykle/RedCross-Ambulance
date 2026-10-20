@@ -29,6 +29,7 @@ GoogleService-Info-Dev.plist
 GoogleService-Info-Prod.plist
 
 # Hemmeligheter og lokale miljøfiler
+iosApp/Configuration/Local.xcconfig
 .env
 *.pem
 

@@ -1,0 +1,13 @@
+// Kopier til Local.xcconfig (samme mappe) for å bygge med ditt eget
+// Apple-team. Local.xcconfig er utelatt fra git.
+//
+// Team-ID finner du i Xcode → Settings → Accounts, eller på
+// developer.apple.com → Membership. Et gratis Apple-ID-team holder for å
+// kjøre på egen iPhone.
+
+DEVELOPMENT_TEAM=DITT_TEAM_ID
+
+// Legges til bak bundle-ID-en (no.oslorodekors.ambulanse<TEAM_ID>), slik at
+// den blir unik for teamet ditt. Uten dette nekter Xcode å signere, fordi
+// Oslo Røde Kors' bundle-ID allerede er registrert.
+TEAM_ID=DITT_TEAM_ID

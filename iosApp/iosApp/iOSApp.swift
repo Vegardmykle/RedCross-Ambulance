@@ -5,7 +5,11 @@ import SharedLogic
 @main
 struct iOSApp: App {
     init() {
-        FirebaseApp.configure()
+        // Uten GoogleService-Info.plist (bygget rett fra GitHub) krasjer
+        // configure(). Da kjører appen kun lokalt, og synken hopper over seg selv.
+        if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
+            FirebaseApp.configure()
+        }
     }
 
     var body: some Scene {

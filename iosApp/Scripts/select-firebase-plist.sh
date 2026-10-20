@@ -26,6 +26,14 @@ if [ -f "${STRAY}" ]; then
     exit 1
 fi
 
+# Ingen av filene: bygget rett fra GitHub uten Firebase. Appen fungerer da
+# fullt ut lokalt, bare uten synkronisering. Ligger én av dem der, er
+# Firebase ment å være satt opp, og en manglende fil er en feil (under).
+if [ ! -f "${SOURCE_DIR}/GoogleService-Info-Dev.plist" ] && [ ! -f "${SOURCE_DIR}/GoogleService-Info-Prod.plist" ]; then
+    echo "warning: Ingen Firebase-konfigurasjon i iosApp/iosApp/Firebase/ – bygger uten synkronisering (kun lokal lagring)."
+    exit 0
+fi
+
 if [ "${CONFIGURATION}" = "Release" ]; then
     SOURCE="${SOURCE_DIR}/GoogleService-Info-Prod.plist"
     ENVIRONMENT="produksjon"

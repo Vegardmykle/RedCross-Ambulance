@@ -14,6 +14,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.example.project.db.AppDatabase
 import org.example.project.util.currentTimeMillis
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Synkronisering mot Firestore.
@@ -77,6 +78,12 @@ class FirebaseSyncService(private val db: AppDatabase) {
     /** Push + pull med statusoppdatering. Kalles ved appstart og etter signering. */
     @Throws(Exception::class, kotlin.coroutines.cancellation.CancellationException::class)
     suspend fun syncAll() = syncMutex.withLock {
+        // Bygget uten Firebase-konfigurasjon (f.eks. rett fra GitHub): ingen
+        // sky å synke mot. Ikke en feil – appen er lokal-først.
+        if (firebaseProjectId() == null) {
+            log("Firebase er ikke satt opp – kjører kun lokalt")
+            return@withLock
+        }
         _status.value = SyncStatus.Syncing
         // Leses før hentingen, ikke etter: endringer som skjer mens synken
         // pågår skal fanges av neste runde, ikke hoppes over.
@@ -222,7 +229,7 @@ class FirebaseSyncService(private val db: AppDatabase) {
             Firebase.auth.signInAnonymously()
         } catch (first: Exception) {
             log("innlogging feilet, prøver én gang til: ${first.message}")
-            kotlinx.coroutines.delay(1000)
+            kotlinx.coroutines.delay(1.seconds)
             Firebase.auth.signInAnonymously()
         }
     }

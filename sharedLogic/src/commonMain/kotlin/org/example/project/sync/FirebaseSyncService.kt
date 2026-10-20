@@ -14,6 +14,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.example.project.db.AppDatabase
 import org.example.project.util.currentTimeMillis
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Synkronisering mot Firestore.
@@ -228,7 +229,7 @@ class FirebaseSyncService(private val db: AppDatabase) {
             Firebase.auth.signInAnonymously()
         } catch (first: Exception) {
             log("innlogging feilet, prøver én gang til: ${first.message}")
-            kotlinx.coroutines.delay(1000)
+            kotlinx.coroutines.delay(1.seconds)
             Firebase.auth.signInAnonymously()
         }
     }

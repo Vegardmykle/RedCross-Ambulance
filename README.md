@@ -66,15 +66,29 @@ Prinsipper som styrer koden:
 
 Krever JDK 17, Android Studio (nyere versjon med AGP 9) og Xcode.
 
+Appen kan bygges rett fra GitHub uten noen hemmeligheter. Uten
+Firebase-konfigurasjon kjører den kun lokalt – alt fungerer, men ingenting
+synkroniseres mellom enheter – og legger inn et sett **generiske
+sjekklister** som utgangspunkt. Oslo Røde Kors' egne lister brukes bare når
+appen er koblet til Oslo Røde Kors' Firebase-prosjekter.
+
 **Android**
 
 ```
-./gradlew :androidApp:assembleDebug
+git clone https://github.com/Vegardmykle/RedCross-Ambulance.git
+cd RedCross-Ambulance
+./gradlew :androidApp:installDebug     # eller assembleDebug for bare APK
 ```
 
-**iOS**: åpne `iosApp/` i Xcode og kjør. Firebase-avhengighetene
+Android Studio finner Android SDK-en selv. Fra kommandolinja må
+`ANDROID_HOME` være satt, eller `sdk.dir` i `local.properties` (se
+`local.properties.example`).
+
+**iOS**: åpne `iosApp/iosApp.xcodeproj` i Xcode og kjør. Firebase-avhengighetene
 (FirebaseCore, FirebaseAuth, FirebaseFirestore) hentes via Swift Package
-Manager ved første bygg.
+Manager ved første bygg. I simulatoren trengs ingenting mer. Skal appen på
+en ekte iPhone, kopier `iosApp/Configuration/Local.xcconfig.example` til
+`Local.xcconfig` og fyll inn din egen Apple team-ID.
 
 Target-et må ha **Keychain Sharing** under Signing & Capabilities. Uten den
 får ikke Firebase Auth lagret tokenet sitt, og innloggingen feiler med den
@@ -82,11 +96,12 @@ lite hjelpsomme meldingen `ERROR_INTERNAL_ERROR` (kode 17999) – som ser ut
 som en nettverksfeil, men ikke er det. Symptomet er at synkroniseringen
 stopper før `[Sync] innlogget som …` i loggen.
 
-**Firebase**: hver utvikler/utrulling trenger `google-services.json`
-(androidApp/) og `GoogleService-Info.plist` (iosApp/) fra
-Firebase-konsollen. Begge er bevisst utelatt fra git. Firestore må være
+**Firebase (valgfritt)**: for synkronisering trengs `google-services.json`
+(debug i `androidApp/src/debug/`, release i `androidApp/`) og
+`GoogleService-Info-Dev.plist` / `-Prod.plist` (i `iosApp/iosApp/Firebase/`)
+fra Firebase-konsollen. Alle er bevisst utelatt fra git. Firestore må være
 Standard edition med database-ID `(default)`, region eur3, og anonym
-autentisering påslått.
+autentisering påslått. Reglene ligger i `firestore.rules`.
 
 **Første kjøring**: appen synker først, og seeder bare hvis databasen
 fortsatt er tom – slik unngås duplikater når flere enheter settes opp.

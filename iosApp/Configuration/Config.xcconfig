@@ -1,3 +1,6 @@
+// Signeringsteam (Oslo Røde Kors). Bygger du appen selv, overstyr dette og
+// TEAM_ID i Local.xcconfig – se Local.xcconfig.example.
+DEVELOPMENT_TEAM=2M63DVT64Y
 TEAM_ID=
 
 PRODUCT_NAME=RedCross-Ambulance
@@ -9,3 +12,8 @@ CURRENT_PROJECT_VERSION=5
 MARKETING_VERSION=1.4.0
 
 OTHER_LDFLAGS=$(inherited) -lsqlite3
+
+// Maskinspesifikke overstyringer (ikke i git). Mangler fila, ignoreres linja.
+// Variablene over leses først når bygget trenger dem, så verdier herfra
+// gjelder også i PRODUCT_BUNDLE_IDENTIFIER i Debug.xcconfig.
+#include? "Local.xcconfig"

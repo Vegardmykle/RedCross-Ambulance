@@ -6,8 +6,24 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
-    alias(libs.plugins.googleServices)
+    alias(libs.plugins.googleServices) apply false
     alias(libs.plugins.firebaseAppDistribution)
+}
+
+/**
+ * Firebase-konfigurasjonen er ikke i git (repoet er offentlig). Uten den
+ * bygges appen uten synkronisering – alt lagres lokalt, som når enheten er
+ * uten nett. Slik kan hvem som helst bygge og prøve appen rett fra GitHub.
+ *
+ * Ligger fila der (debug i src/debug/, release i androidApp/), brukes
+ * Firebase som før.
+ */
+val hasFirebaseConfig = listOf("google-services.json", "src/debug/google-services.json", "src/release/google-services.json")
+    .any { file(it).exists() }
+if (hasFirebaseConfig) {
+    apply(plugin = libs.plugins.googleServices.get().pluginId)
+} else {
+    logger.lifecycle("google-services.json mangler – bygger uten Firebase-synkronisering (kun lokal lagring)")
 }
 
 /**

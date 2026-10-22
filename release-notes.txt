@@ -1,48 +1,42 @@
-Versjon 1.4 – rettelser i status, telling og oppfølging
+Versjon 1.5 – påminnelser, gjenåpning og sikrere synkronisering
 
-Denne versjonen inneholder ingen nye funksjoner, men retter en del ting
-som viste feil eller misvisende informasjon.
+Denne versjonen retter feil i påminnelsen om uavsluttet vakt og i
+gjenåpning av før-kontrollen, og tetter flere hull der svar kunne gå tapt
+eller vises feil på de andre bilene. iPhone og iPad har fått mørk modus.
 
-Sjekklista:
+Vakt ikke avsluttet:
 
-- Punkter som ligger i sekker og tasker telles nå med i fremdriften også
-  etter at før-kontrollen er signert. Tidligere falt de ut av telleren, og
-  "alle punkter besvart" kunne bli stående selv om noe gjensto i en sekk.
+- Trykker du på påminnelsen, åpnes nå akkurat den vakta den gjelder.
+  Tidligere åpnet den dagens liste, og lå det en nyere kontroll for samme
+  bil, kunne den gamle vakta bli stående som påminnelse i dagevis uten at
+  noen fikk lukket den.
 
-- Knappen for å avslutte vakta ble i de tilfellene aktiv for tidlig, og ga
-  en feilmelding først etter at du hadde trykket. Nå stemmer knappen med
-  det som faktisk mangler.
+- Ny knapp: "Avslutt uten signering". Den lukker en vakt som ikke kan
+  avsluttes på vanlig måte. Svarene fra før-kontrollen beholdes, men vakta
+  står som utløpt og ikke signert avsluttet.
 
-Dashbordet:
+Gjenåpning av før-kontrollen:
 
-- På iPhone og iPad sto "Dagens gjøremål" alltid som "Ikke påbegynt", også
-  rett etter at kontrollen var signert. Nå vises riktig status.
-
-- Statusen gjelder nå den bilen du har valgt. Tidligere kunne en kontroll
-  gjort på én ambulanse få en annen til å se kontrollert ut.
-
-- "Vakt ikke avsluttet" blir ikke lenger stående for alltid på vakter som
-  har gått ut på tid. En påminnelse ingen kan kvittere ut blir til slutt
-  ignorert også når den er ekte.
-
-- Ukentlig og månedlig sjekk følger nå kalenderuke og kalendermåned.
-  Ukessjekken gjelder altså ut uka, ikke i sju døgn fra klokkeslettet den
-  ble signert. Månedlig var tidligere "siste 30 dager".
-
-Mangler:
-
-- Avvik på punkter som er fjernet fra lista vises ikke lenger. De kunne
-  ikke lukkes, siden punktet ikke fantes å kontrollere.
-
-- Mangler-siden henter raskere fram hvor lenge et avvik har vært åpent.
+- "Gjenåpne" fjerner ikke lenger signaturen med en gang. Signaturen
+  fjernes først hvis du faktisk endrer et svar. Ser du bare over og går
+  ut igjen, står kontrollen fortsatt som signert.
 
 Synkronisering:
 
-- Synk skjer nå også når noen endrer sjekklista, legger til mannskap eller
-  kjøretøy. Tidligere ble slike endringer på Android liggende til appen ble
-  startet på nytt.
+- Et svar du endrer mens appen sender, for eksempel rett etter signering,
+  blir ikke lenger borte. Før kunne det bli merket som sendt uten å nå de
+  andre bilene.
 
-- Synkroniseringen henter mindre data hver gang og går raskere etter hvert
-  som arkivet vokser.
+- Et punkt som er rettet fra NEI til JA dukker ikke lenger opp igjen som
+  åpent avvik på en annen enhet.
+
+- Én feil i dataene stopper ikke lenger all henting. Tidligere kunne én
+  ødelagt oppføring gjøre at enheten aldri fikk mer fra de andre bilene.
+  Nå hoppes den over, og banneret viser hvor mange som ikke kunne leses.
+  Står meldingen der over tid, oppdater appen.
+
+iPhone og iPad:
+
+- Appen støtter mørk modus og følger innstillingen på enheten.
 
 Meld fra om feil til Vegard.
